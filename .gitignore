@@ -1,0 +1,24 @@
+# generated credentials/state
+.env
+*.token
+SEAT_TOKENS.txt
+config.json
+runtime/
+logs/
+receipts/
+quarantine/
+backups/
+snapshots/
+state/
+*.pid
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# local/private evidence
+private/
+evidence/
+*.local.*
