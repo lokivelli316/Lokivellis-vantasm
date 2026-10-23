@@ -1,0 +1,34 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8765,
+    "resource_url": "auto",
+    "issuer_url": "https://forge-surgeon.invalid/"
+  },
+  "seats": {
+    "architect-seat": {
+      "credential": "GENERATE_AT_INSTALL",
+      "permissions": ["read","inspect","diff","patch","write","execute","test","hold","approve","rollback"],
+      "allowed_roots": ["~/vantasm-workspace"],
+      "approval_requirements": {}
+    },
+    "auditor-seat": {
+      "credential": "GENERATE_AT_INSTALL",
+      "permissions": ["read","inspect","diff","test","hold"],
+      "allowed_roots": ["~/vantasm-workspace"],
+      "approval_requirements": {}
+    },
+    "builder-seat": {
+      "credential": "GENERATE_AT_INSTALL",
+      "permissions": ["read","inspect","diff","patch","write","execute","test","restart","rollback"],
+      "allowed_roots": ["~/vantasm-workspace"],
+      "approval_requirements": {}
+    }
+  },
+  "commands": {
+    "git_status": {"argv":["git","status","--short","--branch"],"timeout":15,"mutating":false,"affected_paths":[]},
+    "git_diff": {"argv":["git","diff","--no-ext-diff","--"],"timeout":20,"mutating":false,"affected_paths":[]},
+    "python_unittest": {"argv":["python","-m","unittest"],"timeout":180,"mutating":false,"affected_paths":[],"extra_arg_pattern":"^[A-Za-z0-9_./:=+@%,-]*$"}
+  },
+  "services": {}
+}
