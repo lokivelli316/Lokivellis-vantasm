@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=70", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "forge-surgeon"
+version = "0.2.0.dev0"
+description = "Vendor-neutral, receipt-first Termux control plane exposed over MCP Streamable HTTP"
+requires-python = ">=3.10"
+dependencies = [
+  "mcp[cli]==2.3.0",
+]
+
+[project.scripts]
+forge-surgeon = "surgeon.server:main"
+forge-surgeon-owner = "surgeon.owner:main"
+
+[tool.setuptools]
+packages = ["surgeon"]
