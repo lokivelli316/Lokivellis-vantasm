@@ -32,18 +32,24 @@ done
 
 install -m 700 "$SRC/connect/vantasm" "$H/vantasm"
 install -m 600 "$SRC/connect/vantasm_probe.py" "$H/tools/vantasm_probe.py"
+install -m 700 "$SRC/scripts/vantasm-bridge-up.sh" "$H/vantasm-bridge-up"
 cat >"$H/start-tunnel.sh" <<EOF
 #!/data/data/com.termux/files/usr/bin/bash
-exec bash "$H/vantasm" up "\$@"
+exec "$H/vantasm-bridge-up" "\$@"
 EOF
 chmod 700 "$H/start-tunnel.sh"
-if [ -d "$BIN" ] && [ -w "$BIN" ]; then ln -sf "$H/vantasm" "$BIN/vantasm"; echo "linked $BIN/vantasm"; fi
+if [ -d "$BIN" ] && [ -w "$BIN" ]; then
+  ln -sf "$H/vantasm" "$BIN/vantasm"
+  ln -sf "$H/vantasm-bridge-up" "$BIN/vantasm-bridge-up"
+  echo "linked $BIN/vantasm"
+  echo "linked $BIN/vantasm-bridge-up"
+fi
 
 {
   echo "{"
   echo "  \"receipt\": \"vantasm-connect-install-$STAMP\","
   echo "  \"version\": \"$(cat "$SRC/VERSION" 2>/dev/null)\","
-  echo "  \"installed\": [\"$H/vantasm\", \"$H/tools/vantasm_probe.py\", \"$H/start-tunnel.sh\"],"
+  echo "  \"installed\": [\"$H/vantasm\", \"$H/vantasm-bridge-up\", \"$H/tools/vantasm_probe.py\", \"$H/start-tunnel.sh\"],"
   echo "  \"sha256\": {"
   echo "    \"vantasm\": \"$(sha256sum "$H/vantasm" | cut -d' ' -f1)\","
   echo "    \"vantasm_probe.py\": \"$(sha256sum "$H/tools/vantasm_probe.py" | cut -d' ' -f1)\""
@@ -56,4 +62,5 @@ chmod 600 "$BK/INSTALL_RECEIPT.json"
 echo "PASS: vantasm installed. Receipt: $BK/INSTALL_RECEIPT.json"
 echo "Next:"
 echo "  vantasm doctor"
-echo "  vantasm up --watch"
+echo "  vantasm-bridge-up"
+echo "  vantasm-bridge-up --watch"
