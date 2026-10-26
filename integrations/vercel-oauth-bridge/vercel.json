@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/api/bridge?route=root"
+    },
+    {
+      "source": "/healthz",
+      "destination": "/api/bridge?route=health"
+    },
+    {
+      "source": "/mcp",
+      "destination": "/api/bridge?route=mcp"
+    },
+    {
+      "source": "/.well-known/oauth-protected-resource/mcp",
+      "destination": "/api/bridge?route=prm"
+    },
+    {
+      "source": "/.well-known/oauth-protected-resource",
+      "destination": "/api/bridge?route=prm"
+    },
+    {
+      "source": "/.well-known/oauth-authorization-server",
+      "destination": "/api/bridge?route=asmeta"
+    },
+    {
+      "source": "/oauth/register",
+      "destination": "/api/bridge?route=register"
+    },
+    {
+      "source": "/oauth/authorize",
+      "destination": "/api/bridge?route=authorize"
+    },
+    {
+      "source": "/oauth/token",
+      "destination": "/api/bridge?route=token"
+    }
+  ],
+  "functions": {
+    "api/bridge.js": {
+      "maxDuration": 60
+    }
+  }
+}
