@@ -6,6 +6,10 @@
       "destination": "/api/bridge?route=root"
     },
     {
+      "source": "/setup",
+      "destination": "/api/bridge?route=setup"
+    },
+    {
       "source": "/healthz",
       "destination": "/api/bridge?route=health"
     },
