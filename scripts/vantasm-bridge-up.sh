@@ -28,8 +28,36 @@ fi
 [ -n "$url" ] || { echo "HOLD: Vantasm started but no current trycloudflare URL could be discovered."; exit 4; }
 
 if ! curl -fsS --max-time 20 "$url/healthz" >/dev/null; then
-  echo "HOLD: discovered tunnel did not pass /healthz, refusing to publish stale URL."
-  exit 5
+  echo "WARN: discovered tunnel failed /healthz; recycling stale Quick Tunnel once."
+
+  SURGEON_PORT="${FORGE_SURGEON_PORT:-8765}"
+  pkill -f "cloudflared.*tunnel.*--url.*127\\.0\\.0\\.1:${SURGEON_PORT}" >/dev/null 2>&1 || true
+  sleep 1
+
+  : >"$TMP"
+  set +e
+  vantasm up "${args[@]}" 2>&1 | tee "$TMP"
+  rc=${PIPESTATUS[0]}
+  set -e
+  [ "$rc" -eq 0 ] || exit "$rc"
+
+  url="$(grep -Eo 'https://[a-z0-9-]+\\.trycloudflare\\.com' "$TMP" | tail -n1 || true)"
+  if [ -z "$url" ]; then
+    url="$(grep -RhoE 'https://[a-z0-9-]+\\.trycloudflare\\.com' "$H/logs" "$H/runtime" 2>/dev/null | tail -n1 || true)"
+  fi
+  [ -n "$url" ] || { echo "HOLD: no fresh trycloudflare URL discovered after recycle."; exit 5; }
+
+  ok=0
+  for _ in 1 2 3 4 5 6; do
+    if curl -fsS --max-time 20 "$url/healthz" >/dev/null 2>&1; then
+      ok=1
+      break
+    fi
+    sleep 2
+  done
+  [ "$ok" -eq 1 ] || { echo "HOLD: fresh tunnel still failed /healthz; refusing to publish."; exit 5; }
+
+  echo "PASS: stale Quick Tunnel recycled and fresh /healthz verified."
 fi
 
 if [ ! -d "$PUBLISH_DIR/.git" ]; then
