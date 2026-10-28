@@ -154,14 +154,33 @@ else
 fi
 if [ "$gen_up" -eq 1 ]; then ok "Generator listening on 127.0.0.1:$GEN_PORT"; else bad "Generator not listening on 127.0.0.1:$GEN_PORT"; fi
 
-speech_wav="$RUN_DIR/speech-smoke.wav"
-rm -f "$speech_wav"
-if curl -fsS --max-time 45 \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"kokoro","voice":"af_heart","input":"Vantasm live speech smoke test."}' \
-  http://127.0.0.1:8788/v1/audio/speech \
-  -o "$speech_wav" >/dev/null 2>&1; then
-  if python - "$speech_wav" <<'PY'
+SPEECH_ROOT="${VANTASM_SPEECH_ROOT:-$HOME/forge-pack/Lokivellispeech}"
+speech_smoke_ok=0
+
+if [ -d "$SPEECH_ROOT" ]; then
+  if (cd "$SPEECH_ROOT" && python3 -m lokivellispeech smoke) >"$RUN_DIR/speech-smoke.log" 2>&1; then
+    cat "$RUN_DIR/speech-smoke.log" 2>/dev/null || true
+    speech_smoke_ok=1
+    ok "LokivelliSpeech canonical smoke test passed"
+  fi
+fi
+
+if [ "$speech_smoke_ok" -ne 1 ]; then
+  speech_wav="$RUN_DIR/speech-smoke.wav"
+  speech_hdr="$RUN_DIR/speech-smoke.headers"
+  speech_err="$RUN_DIR/speech-smoke.error"
+  rm -f "$speech_wav" "$speech_hdr" "$speech_err"
+
+  http_code="$(curl -sS --max-time 45 \
+    -D "$speech_hdr" \
+    -o "$speech_wav" \
+    -w '%{http_code}' \
+    -H 'Content-Type: application/json' \
+    -d '{"model":"kokoro","voice":"af_heart","input":"Vantasm live speech smoke test."}' \
+    http://127.0.0.1:8788/v1/audio/speech \
+    2>"$speech_err" || true)"
+
+  if [ "$http_code" = "200" ] && python - "$speech_wav" <<'PY'
 import sys, wave, math, struct
 p=sys.argv[1]
 with wave.open(p,'rb') as w:
@@ -180,12 +199,16 @@ if rms <= 1 or dur <= 0.05:
 print(f"speech smoke: {dur:.2f}s {rate}Hz ch={ch} rms={rms:.1f}")
 PY
   then
+    speech_smoke_ok=1
     ok "Live /v1/audio/speech synthesis produced non-silent WAV"
   else
-    bad "Speech POST returned WAV but audio sanity check failed"
+    say "         speech smoke fallback HTTP=$http_code"
+    [ -s "$speech_err" ] && sed 's/^/         /' "$speech_err" | head -n 5
   fi
-else
-  bad "Live /v1/audio/speech synthesis request failed"
+fi
+
+if [ "$speech_smoke_ok" -ne 1 ]; then
+  bad "Speech live smoke failed; service health remains independently READY"
 fi
 
 say "6) Watcher"
