@@ -235,6 +235,34 @@ if [ "$speech_smoke_ok" -ne 1 ]; then
       else
         say "         worker installer failed:"
         sed "s/^/         /" "$RUN_DIR/speech-repair.log" 2>/dev/null | tail -n 30
+
+        VENV="$HOME/.local/share/lokivellispeech/workers/kokoro/.venv"
+        if [ -x "$VENV/bin/pip" ] && [ -x "$VENV/bin/python" ]; then
+          say "         attempting bounded phonemizer-fork repair"
+          "$VENV/bin/pip" install --force-reinstall --no-deps phonemizer-fork==3.3.1 \
+            >"$RUN_DIR/phonemizer-repair.log" 2>&1 || true
+
+          if (cd "$SPEECH_ROOT/workers/kokoro" && \
+              "$VENV/bin/python" -c "import worker; worker.termux_compat(); import phonemizer, kokoro_onnx, colorlog; print('PASS phonemizer import')" ) \
+              >>"$RUN_DIR/phonemizer-repair.log" 2>&1; then
+            (cd "$SPEECH_ROOT" && python3 -m lokivellispeech workers stop kokoro >/dev/null 2>&1 || true)
+            (cd "$SPEECH_ROOT" && python3 -m lokivellispeech workers start kokoro) \
+              >>"$RUN_DIR/phonemizer-repair.log" 2>&1 || true
+            sleep 2
+            if (cd "$SPEECH_ROOT" && python3 -m lokivellispeech smoke --base http://127.0.0.1:8788/) \
+                >"$RUN_DIR/speech-smoke-retry.log" 2>&1; then
+              cat "$RUN_DIR/speech-smoke-retry.log" 2>/dev/null || true
+              speech_smoke_ok=1
+              ok "phonemizer-fork restored; Kokoro restarted; live Speech smoke passed"
+            else
+              say "         phonemizer repaired but smoke retry still failed:"
+              sed "s/^/         /" "$RUN_DIR/speech-smoke-retry.log" 2>/dev/null | tail -n 20
+            fi
+          else
+            say "         phonemizer-fork repair verification failed:"
+            sed "s/^/         /" "$RUN_DIR/phonemizer-repair.log" 2>/dev/null | tail -n 30
+          fi
+        fi
       fi
     else
       say "         worker installer missing: $SPEECH_ROOT/scripts/install-worker.sh"
