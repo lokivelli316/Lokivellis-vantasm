@@ -65,14 +65,29 @@ if ! curl -fsS --max-time 20 "$url/healthz" >/dev/null; then
 
   echo "INFO: fresh Quick Tunnel discovered -> $url"
   ok=0
-  for _ in 1 2 3 4 5 6; do
-    if curl -fsS --max-time 20 "$url/healthz" >/dev/null 2>&1; then
+  PROBE_BODY="$H/runtime/cloudflare-health-body.txt"
+  PROBE_CODE=""
+  : >"$PROBE_BODY"
+  for _ in $(seq 1 30); do
+    PROBE_CODE="$(curl -sS --max-time 20 -o "$PROBE_BODY" -w '%{http_code}' "$url/healthz" 2>/dev/null || true)"
+    if [ "$PROBE_CODE" = "200" ]; then
       ok=1
       break
     fi
     sleep 2
   done
-  [ "$ok" -eq 1 ] || { echo "HOLD: fresh tunnel still failed /healthz; refusing to publish."; exit 5; }
+  if [ "$ok" -ne 1 ]; then
+    echo "HOLD: fresh tunnel did not become publicly healthy within readiness window."
+    echo "INFO: last Cloudflare HTTP status -> ${PROBE_CODE:-unknown}"
+    if [ -s "$PROBE_BODY" ]; then
+      echo "INFO: last Cloudflare response body:"
+      head -c 1600 "$PROBE_BODY" 2>/dev/null || true
+      echo
+    fi
+    echo "INFO: cloudflared tail:"
+    tail -n 20 "$TUN_LOG" 2>/dev/null || true
+    exit 5
+  fi
 
   echo "PASS: stale Quick Tunnel recycled and fresh /healthz verified."
 fi
