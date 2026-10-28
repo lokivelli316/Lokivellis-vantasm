@@ -331,6 +331,51 @@ if [ "$speech_smoke_ok" -ne 1 ]; then
 fi
 
 if [ "$speech_smoke_ok" -ne 1 ]; then
+  if grep -q "undefined symbol: dlinfo" "$RUN_DIR/phonemizer-repair.log" 2>/dev/null || \
+     grep -q "undefined symbol: dlinfo" "$RUN_DIR/speech-repair.log" 2>/dev/null; then
+    VENV="$HOME/.local/share/lokivellispeech/workers/kokoro/.venv"
+    if [ -x "$VENV/bin/python" ]; then
+      say "         detected Android bionic dlinfo incompatibility; installing scoped Kokoro shim"
+      SITE="$("$VENV/bin/python" -c 'import site; print(site.getsitepackages()[0])' 2>/dev/null || true)"
+      if [ -n "$SITE" ] && [ -d "$SITE" ]; then
+        cat >"$SITE/termux_dlinfo_compat.py" <<'PY'
+import os, sys, types
+if "/data/data/com.termux" in os.environ.get("PREFIX", "") or os.path.exists("/data/data/com.termux"):
+    mod = types.ModuleType("dlinfo")
+    class DLInfo:
+        def __init__(self, library):
+            self.path = getattr(library, "_name", "")
+    mod.DLInfo = DLInfo
+    sys.modules["dlinfo"] = mod
+PY
+        printf '%s\n' 'import termux_dlinfo_compat' >"$SITE/00-termux-dlinfo-compat.pth"
+
+        if (cd "$SPEECH_ROOT/workers/kokoro" && \
+            "$VENV/bin/python" -c "import phonemizer, kokoro_onnx, colorlog; print('PASS Termux dlinfo compat')" ) \
+            >"$RUN_DIR/dlinfo-repair.log" 2>&1; then
+          (cd "$SPEECH_ROOT" && python3 -m lokivellispeech workers stop kokoro >/dev/null 2>&1 || true)
+          (cd "$SPEECH_ROOT" && python3 -m lokivellispeech workers start kokoro) \
+            >>"$RUN_DIR/dlinfo-repair.log" 2>&1 || true
+          sleep 3
+          if (cd "$SPEECH_ROOT" && python3 -m lokivellispeech smoke --base http://127.0.0.1:8788/) \
+              >"$RUN_DIR/speech-smoke-retry3.log" 2>&1; then
+            cat "$RUN_DIR/speech-smoke-retry3.log" 2>/dev/null || true
+            speech_smoke_ok=1
+            ok "Termux dlinfo compatibility repaired; Kokoro live Speech smoke passed"
+          else
+            say "         dlinfo shim installed but Speech smoke still failed:"
+            sed "s/^/         /" "$RUN_DIR/speech-smoke-retry3.log" 2>/dev/null | tail -n 30
+          fi
+        else
+          say "         dlinfo compatibility verification failed:"
+          sed "s/^/         /" "$RUN_DIR/dlinfo-repair.log" 2>/dev/null | tail -n 30
+        fi
+      fi
+    fi
+  fi
+fi
+
+if [ "$speech_smoke_ok" -ne 1 ]; then
   bad "Speech live smoke failed; service health remains independently READY"
 fi
 
