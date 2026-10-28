@@ -110,3 +110,32 @@ vantasm launch
 The wrapper preserves the pre-existing Vantasm CLI as `$FORGE_SURGEON_HOME/vantasm-core`. Every command other than `launch` is delegated unchanged to that existing CLI. This avoids overwriting a newer device-local control implementation.
 
 The command is designed to be idempotent: repeated runs reconcile current state rather than intentionally duplicating services or configuration.
+
+
+## Bounded operator mode
+
+For an owner-authorized device where an MCP builder seat is expected to carry repairs through to completion, Vantasm can install a bounded operator profile:
+
+```sh
+bash scripts/enable-operator-mode.sh
+```
+
+This does **not** grant arbitrary shell access and does not expose the Vantasm control directory to the MCP seat. It authorizes the configured Forge roots and registers explicit safe execution profiles for:
+
+- `vantasm launch`
+- Generator pack activation
+- LokivelliSpeech Kokoro install/start/stop/doctor/smoke
+- pytest / unittest
+- local git status, diff, add, and commit
+
+The intended operator loop is:
+
+```text
+inspect -> snapshot -> repair -> restart -> test -> verify -> reconcile -> receipt
+```
+
+The builder should continue that loop without owner handoff while actions remain inside authorized roots and registered profiles.
+
+Owner interaction is reserved for boundaries that genuinely require it, including external credentials or OAuth, Android permissions, destructive/high-impact changes, expansion of authorized roots, and publication/push decisions.
+
+`git push` is intentionally not registered by operator mode. Local source repair and commit may be completed autonomously; publication remains an explicit owner boundary.
