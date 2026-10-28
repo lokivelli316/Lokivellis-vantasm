@@ -158,10 +158,13 @@ SPEECH_ROOT="${VANTASM_SPEECH_ROOT:-$HOME/forge-pack/Lokivellispeech}"
 speech_smoke_ok=0
 
 if [ -d "$SPEECH_ROOT" ]; then
-  if (cd "$SPEECH_ROOT" && python3 -m lokivellispeech smoke) >"$RUN_DIR/speech-smoke.log" 2>&1; then
+  if (cd "$SPEECH_ROOT" && python3 -m lokivellispeech smoke --base http://127.0.0.1:8788/) >"$RUN_DIR/speech-smoke.log" 2>&1; then
     cat "$RUN_DIR/speech-smoke.log" 2>/dev/null || true
     speech_smoke_ok=1
     ok "LokivelliSpeech canonical smoke test passed"
+  else
+    say "         canonical smoke failed:"
+    sed "s/^/         /" "$RUN_DIR/speech-smoke.log" 2>/dev/null | tail -n 20
   fi
 fi
 
@@ -204,6 +207,11 @@ PY
   else
     say "         speech smoke fallback HTTP=$http_code"
     [ -s "$speech_err" ] && sed 's/^/         /' "$speech_err" | head -n 5
+    if [ -s "$speech_wav" ]; then
+      say "         response body:"
+      head -c 800 "$speech_wav" 2>/dev/null | sed 's/^/         /'
+      say ""
+    fi
   fi
 fi
 
