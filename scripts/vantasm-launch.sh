@@ -53,7 +53,7 @@ if [ "$restart_needed" -eq 1 ]; then
     pkill -f 'surgeon.server' >/dev/null 2>&1 || true
   fi
   sleep 1
-  if "$CORE" up >$UP_LOG 2>&1; then
+  if "$CORE" up >"$UP_LOG" 2>&1; then
     control_ok=1; ok "Surgeon reconciled/restarted"
   else
     bad "Surgeon restart failed"
@@ -62,7 +62,7 @@ if [ "$restart_needed" -eq 1 ]; then
 else
   if curl -fsS --max-time 5 http://127.0.0.1:$SURGEON_PORT/healthz >/dev/null 2>&1; then
     control_ok=1; ok "Surgeon already healthy"
-  elif "$CORE" up >$UP_LOG 2>&1; then
+  elif "$CORE" up >"$UP_LOG" 2>&1; then
     control_ok=1; ok "Surgeon started"
   else
     bad "Surgeon unavailable"
@@ -71,7 +71,7 @@ fi
 
 say "2) Tunnel + stable bridge"
 if [ -x "$BRIDGE" ]; then
-  if "$BRIDGE" >$BRIDGE_LOG 2>&1; then
+  if "$BRIDGE" >"$BRIDGE_LOG" 2>&1; then
     bridge_ok=1; ok "Tunnel published and stable bridge verified"
   else
     bad "Tunnel/bridge reconciliation failed"
@@ -83,7 +83,7 @@ fi
 
 say "3) Pack activation"
 if [ -d "$PACK_ROOT" ] && [ -f "$PACK_ROOT/pack_activation.py" ]; then
-  if (cd "$PACK_ROOT" && python pack_activation.py --apply --start) >$PACK_LOG 2>&1; then
+  if (cd "$PACK_ROOT" && python pack_activation.py --apply --start) >"$PACK_LOG" 2>&1; then
     pack_ok=1; ok "pack_activation.py --apply --start completed"
   else
     bad "Pack activation returned non-zero"
