@@ -6,6 +6,12 @@ CORE="${VANTASM_CORE_BIN:-$H/vantasm-core}"
 BRIDGE="${VANTASM_BRIDGE_BIN:-$H/vantasm-bridge-up}"
 PACK_ROOT="${VANTASM_PACK_ROOT:-$HOME/nemotron-v0451-live}"
 STAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+RUN_DIR="${VANTASM_RUN_DIR:-$H/runtime/launch}"
+mkdir -p "$RUN_DIR"
+chmod 700 "$RUN_DIR" 2>/dev/null || true
+UP_LOG="$RUN_DIR/up.log"
+BRIDGE_LOG="$RUN_DIR/bridge.log"
+PACK_LOG="$RUN_DIR/pack.log"
 
 pass=0
 hold=0
@@ -42,16 +48,16 @@ if [ "$restart_needed" -eq 1 ]; then
     pkill -f 'surgeon.server' >/dev/null 2>&1 || true
   fi
   sleep 1
-  if "$CORE" up >/tmp/vantasm-launch-up.log 2>&1; then
+  if "$CORE" up >$UP_LOG 2>&1; then
     ok "Surgeon reconciled/restarted"
   else
     bad "Surgeon restart failed"
-    cat /tmp/vantasm-launch-up.log 2>/dev/null || true
+    cat "$UP_LOG" 2>/dev/null || true
   fi
 else
   if curl -fsS --max-time 5 http://127.0.0.1:8765/healthz >/dev/null 2>&1; then
     ok "Surgeon already healthy"
-  elif "$CORE" up >/tmp/vantasm-launch-up.log 2>&1; then
+  elif "$CORE" up >$UP_LOG 2>&1; then
     ok "Surgeon started"
   else
     bad "Surgeon unavailable"
@@ -60,11 +66,11 @@ fi
 
 say "2) Tunnel + stable bridge"
 if [ -x "$BRIDGE" ]; then
-  if "$BRIDGE" >/tmp/vantasm-launch-bridge.log 2>&1; then
+  if "$BRIDGE" >$BRIDGE_LOG 2>&1; then
     ok "Tunnel published and stable bridge verified"
   else
     bad "Tunnel/bridge reconciliation failed"
-    tail -n 20 /tmp/vantasm-launch-bridge.log 2>/dev/null || true
+    tail -n 20 "$BRIDGE_LOG" 2>/dev/null || true
   fi
 else
   bad "Bridge publisher missing at $BRIDGE"
@@ -72,12 +78,12 @@ fi
 
 say "3) Pack activation"
 if [ -d "$PACK_ROOT" ] && [ -f "$PACK_ROOT/pack_activation.py" ]; then
-  if (cd "$PACK_ROOT" && python pack_activation.py --apply --start) >/tmp/vantasm-launch-pack.log 2>&1; then
+  if (cd "$PACK_ROOT" && python pack_activation.py --apply --start) >$PACK_LOG 2>&1; then
     ok "pack_activation.py --apply --start completed"
   else
     bad "Pack activation returned non-zero"
   fi
-  cat /tmp/vantasm-launch-pack.log 2>/dev/null || true
+  cat "$PACK_LOG" 2>/dev/null || true
 else
   bad "Pack root or pack_activation.py missing: $PACK_ROOT"
 fi
