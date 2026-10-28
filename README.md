@@ -81,3 +81,32 @@ This repository is the public-portability line. Device-specific development evid
 ## License
 
 No open-source license has been selected yet. The repository may be public, but reuse rights should be clarified by the owner before calling it an open-source release.
+
+
+## One-command convergence
+
+On an existing Vantasm installation, install the additive launch wrapper:
+
+```sh
+bash scripts/install-launch.sh
+```
+
+Normal recovery/activation then becomes:
+
+```sh
+vantasm launch
+```
+
+`vantasm launch` is intentionally a convergence command, not merely a process starter. It:
+
+- reloads the Surgeon when the local authority/config map changed
+- verifies or starts the control plane
+- reconciles the Cloudflare tunnel and stable bridge publication
+- runs the Generator pack's real `pack_activation.py --apply --start` when present
+- probes Vantasm, LokivelliSpeech, T3MP3ST, and Dragon Ball
+- ensures the Vantasm watcher remains active
+- exits PASS only when all required probes pass; unresolved items remain truthful HOLDs
+
+The wrapper preserves the pre-existing Vantasm CLI as `$FORGE_SURGEON_HOME/vantasm-core`. Every command other than `launch` is delegated unchanged to that existing CLI. This avoids overwriting a newer device-local control implementation.
+
+The command is designed to be idempotent: repeated runs reconcile current state rather than intentionally duplicating services or configuration.
