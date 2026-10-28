@@ -31,42 +31,39 @@ if ! curl -fsS --max-time 20 "$url/healthz" >/dev/null; then
   echo "WARN: discovered tunnel failed /healthz; recycling stale Quick Tunnel once."
 
   SURGEON_PORT="${FORGE_SURGEON_PORT:-8765}"
+  TUN_LOG="$H/logs/cloudflared-quick.log"
+  TUN_PID="$H/runtime/cloudflared-quick.pid"
+  mkdir -p "$H/logs" "$H/runtime"
+
+  if [ -f "$TUN_PID" ]; then
+    oldpid="$(cat "$TUN_PID" 2>/dev/null || true)"
+    if [ -n "$oldpid" ]; then
+      kill "$oldpid" >/dev/null 2>&1 || true
+    fi
+    rm -f "$TUN_PID"
+  fi
   pkill -f "cloudflared.*tunnel.*--url.*127\\.0\\.0\\.1:${SURGEON_PORT}" >/dev/null 2>&1 || true
   sleep 1
 
-  : >"$TMP"
-  set +e
-  vantasm up "${args[@]}" 2>&1 | tee "$TMP"
-  rc=${PIPESTATUS[0]}
-  set -e
-  [ "$rc" -eq 0 ] || exit "$rc"
+  : >"$TUN_LOG"
+  nohup cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:${SURGEON_PORT}" \
+    >"$TUN_LOG" 2>&1 </dev/null &
+  echo $! >"$TUN_PID"
 
-  url="$(grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' "$TMP" | tail -n1 || true)"
-  if [ -z "$url" ]; then
-    url="$(grep -RhoE 'https://[a-z0-9-]+\.trycloudflare\.com' "$H/logs" "$H/runtime" 2>/dev/null | tail -n1 || true)"
-  fi
-
-  if [ -z "$url" ]; then
-    TUN_LOG="$H/logs/cloudflared-quick.log"
-    mkdir -p "$H/logs" "$H/runtime"
-    : >"$TUN_LOG"
-    nohup cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:${SURGEON_PORT}" \
-      >"$TUN_LOG" 2>&1 </dev/null &
-    echo $! >"$H/runtime/cloudflared-quick.pid"
-
-    for _ in 1 2 3 4 5 6 7 8 9 10; do
-      url="$(grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' "$TUN_LOG" | tail -n1 || true)"
-      [ -n "$url" ] && break
-      sleep 1
-    done
-  fi
+  url=""
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+    url="$(grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' "$TUN_LOG" | tail -n1 || true)"
+    [ -n "$url" ] && break
+    sleep 1
+  done
 
   [ -n "$url" ] || {
-    echo "HOLD: cloudflared did not produce a fresh trycloudflare URL."
-    tail -n 25 "$H/logs/cloudflared-quick.log" 2>/dev/null || true
+    echo "HOLD: fresh cloudflared process did not emit a trycloudflare URL."
+    tail -n 30 "$TUN_LOG" 2>/dev/null || true
     exit 5
   }
 
+  echo "INFO: fresh Quick Tunnel discovered -> $url"
   ok=0
   for _ in 1 2 3 4 5 6; do
     if curl -fsS --max-time 20 "$url/healthz" >/dev/null 2>&1; then
