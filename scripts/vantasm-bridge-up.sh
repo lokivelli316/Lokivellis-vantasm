@@ -41,9 +41,9 @@ if ! curl -fsS --max-time 20 "$url/healthz" >/dev/null; then
   set -e
   [ "$rc" -eq 0 ] || exit "$rc"
 
-  url="$(grep -Eo 'https://[a-z0-9-]+\\.trycloudflare\\.com' "$TMP" | tail -n1 || true)"
+  url="$(grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' "$TMP" | tail -n1 || true)"
   if [ -z "$url" ]; then
-    url="$(grep -RhoE 'https://[a-z0-9-]+\\.trycloudflare\\.com' "$H/logs" "$H/runtime" 2>/dev/null | tail -n1 || true)"
+    url="$(grep -RhoE 'https://[a-z0-9-]+\.trycloudflare\.com' "$H/logs" "$H/runtime" 2>/dev/null | tail -n1 || true)"
   fi
 
   if [ -z "$url" ]; then
@@ -55,7 +55,7 @@ if ! curl -fsS --max-time 20 "$url/healthz" >/dev/null; then
     echo $! >"$H/runtime/cloudflared-quick.pid"
 
     for _ in 1 2 3 4 5 6 7 8 9 10; do
-      url="$(grep -Eo 'https://[a-z0-9-]+\\.trycloudflare\\.com' "$TUN_LOG" | tail -n1 || true)"
+      url="$(grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' "$TUN_LOG" | tail -n1 || true)"
       [ -n "$url" ] && break
       sleep 1
     done
