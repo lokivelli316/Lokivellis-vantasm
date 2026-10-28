@@ -271,6 +271,30 @@ if [ "$speech_smoke_ok" -ne 1 ]; then
 fi
 
 if [ "$speech_smoke_ok" -ne 1 ]; then
+  if grep -q '"kokoro": "UNREACHABLE"' "$RUN_DIR/speech-smoke.log" 2>/dev/null || \
+     grep -q "engine 'kokoro' is UNREACHABLE" "$speech_wav" 2>/dev/null || \
+     grep -q "worker not running" "$speech_wav" 2>/dev/null; then
+    say "         Kokoro worker is installed but stopped; starting it"
+    if (cd "$SPEECH_ROOT" && python3 -m lokivellispeech workers start kokoro) \
+        >"$RUN_DIR/kokoro-start.log" 2>&1; then
+      sleep 2
+      if (cd "$SPEECH_ROOT" && python3 -m lokivellispeech smoke --base http://127.0.0.1:8788/) \
+          >"$RUN_DIR/speech-smoke-retry.log" 2>&1; then
+        cat "$RUN_DIR/speech-smoke-retry.log" 2>/dev/null || true
+        speech_smoke_ok=1
+        ok "Kokoro worker started and live Speech smoke passed"
+      else
+        say "         Kokoro started but smoke retry failed:"
+        sed "s/^/         /" "$RUN_DIR/speech-smoke-retry.log" 2>/dev/null | tail -n 25
+      fi
+    else
+      say "         Kokoro worker start failed:"
+      sed "s/^/         /" "$RUN_DIR/kokoro-start.log" 2>/dev/null | tail -n 30
+    fi
+  fi
+fi
+
+if [ "$speech_smoke_ok" -ne 1 ]; then
   bad "Speech live smoke failed; service health remains independently READY"
 fi
 
