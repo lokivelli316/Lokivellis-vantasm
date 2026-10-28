@@ -379,7 +379,66 @@ if [ "$speech_smoke_ok" -ne 1 ]; then
   bad "Speech live smoke failed; service health remains independently READY"
 fi
 
-say "6) Watcher"
+say "6) Hamburger + nested surface convergence"
+UI_BASE="http://127.0.0.1:8795"
+ui_gate_ok=1
+
+if curl -fsS --max-time 10 "$UI_BASE/api/repo-tools" >"$RUN_DIR/repo-tools.json" 2>/dev/null; then
+  if python3 - "$RUN_DIR/repo-tools.json" <<'PY'
+import json,sys
+rows=json.load(open(sys.argv[1])).get("tools",[])
+bad=[r for r in rows if r.get("status") in {"staged","unconfigured"}]
+if bad:
+    print("repo tools unresolved:")
+    for r in bad:
+        print(f" - {r.get('label') or r.get('name')}: {r.get('status')}")
+    raise SystemExit(1)
+print(f"repo tools live={len(rows)} unresolved=0")
+PY
+  then
+    ok "Hamburger repo inventory has no staged/unconfigured entries"
+  else
+    ui_gate_ok=0
+    bad "Hamburger repo inventory still contains staged/unconfigured entries"
+  fi
+else
+  ui_gate_ok=0
+  bad "Hamburger repo inventory endpoint unavailable"
+fi
+
+if curl -fsS --max-time 10 "$UI_BASE/api/module-manifest" >"$RUN_DIR/module-manifest.json" 2>/dev/null; then
+  if python3 - "$RUN_DIR/module-manifest.json" <<'PY'
+import json,sys
+m=json.load(open(sys.argv[1]))
+bad_states={
+ "implemented-not-live-qualified","configured-not-qualified",
+ "conditional-local-runtime","candidate","dormant",
+ "not-implemented-spec-not-supplied"
+}
+bad=[]
+for x in m.get("capabilities",[]):
+    st=x.get("status")
+    if st in bad_states:
+        bad.append((x.get("id"),st))
+if bad:
+    print("nested capabilities unresolved:")
+    for i,s in bad:
+        print(f" - {i}: {s}")
+    raise SystemExit(1)
+print("nested capability manifest unresolved=0")
+PY
+  then
+    ok "Nested Generator capability manifest has no unresolved runtime states"
+  else
+    ui_gate_ok=0
+    bad "Nested Generator capability manifest still has unresolved runtime states"
+  fi
+else
+  ui_gate_ok=0
+  bad "Generator module manifest endpoint unavailable"
+fi
+
+say "7) Watcher"
 if pgrep -f 'vantasm.*watch' >/dev/null 2>&1; then
   ok "Watcher already running"
 else
