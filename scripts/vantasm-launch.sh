@@ -286,6 +286,42 @@ if [ "$speech_smoke_ok" -ne 1 ]; then
       else
         say "         Kokoro started but smoke retry failed:"
         sed "s/^/         /" "$RUN_DIR/speech-smoke-retry.log" 2>/dev/null | tail -n 25
+
+        curl -fsS --max-time 5 http://127.0.0.1:8851/health \
+          >"$RUN_DIR/kokoro-health.json" 2>/dev/null || true
+        if [ -s "$RUN_DIR/kokoro-health.json" ]; then
+          say "         Kokoro worker health:"
+          sed "s/^/         /" "$RUN_DIR/kokoro-health.json" | head -n 20
+        fi
+
+        if grep -q "phonemizer" "$RUN_DIR/kokoro-health.json" 2>/dev/null; then
+          VENV="$HOME/.local/share/lokivellispeech/workers/kokoro/.venv"
+          say "         Kokoro health still reports phonemizer missing; repairing worker venv"
+          if [ -x "$VENV/bin/pip" ] && [ -x "$VENV/bin/python" ]; then
+            "$VENV/bin/pip" install --force-reinstall --no-deps phonemizer-fork==3.3.1 \
+              >"$RUN_DIR/phonemizer-repair.log" 2>&1 || true
+            if (cd "$SPEECH_ROOT/workers/kokoro" && \
+                "$VENV/bin/python" -c "import worker; worker.termux_compat(); import phonemizer, kokoro_onnx, colorlog; print('PASS phonemizer import')" ) \
+                >>"$RUN_DIR/phonemizer-repair.log" 2>&1; then
+              (cd "$SPEECH_ROOT" && python3 -m lokivellispeech workers stop kokoro >/dev/null 2>&1 || true)
+              (cd "$SPEECH_ROOT" && python3 -m lokivellispeech workers start kokoro) \
+                >>"$RUN_DIR/phonemizer-repair.log" 2>&1 || true
+              sleep 2
+              if (cd "$SPEECH_ROOT" && python3 -m lokivellispeech smoke --base http://127.0.0.1:8788/) \
+                  >"$RUN_DIR/speech-smoke-retry2.log" 2>&1; then
+                cat "$RUN_DIR/speech-smoke-retry2.log" 2>/dev/null || true
+                speech_smoke_ok=1
+                ok "Kokoro runtime repaired after restart; live Speech smoke passed"
+              else
+                say "         second Speech smoke retry failed:"
+                sed "s/^/         /" "$RUN_DIR/speech-smoke-retry2.log" 2>/dev/null | tail -n 25
+              fi
+            else
+              say "         phonemizer repair verification failed:"
+              sed "s/^/         /" "$RUN_DIR/phonemizer-repair.log" 2>/dev/null | tail -n 30
+            fi
+          fi
+        fi
       fi
     else
       say "         Kokoro worker start failed:"
