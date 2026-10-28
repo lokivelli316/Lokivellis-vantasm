@@ -96,8 +96,18 @@ if [ "$control_ok" -ne 1 ]; then
   bad "Primary control-plane failure; runtime probes skipped to avoid cascade noise"
 else
 probe_http(){
-  name="$1"; url="$2"
-  if curl -fsS --max-time 8 "$url" >/dev/null 2>&1; then ok "$name -> $url"; else bad "$name not answering -> $url"; fi
+  name="$1"; url="$2"; tries="${3:-5}"
+  i=1
+  while [ "$i" -le "$tries" ]; do
+    if curl -fsS --max-time 8 "$url" >/dev/null 2>&1; then
+      ok "$name -> $url"
+      return 0
+    fi
+    sleep 1
+    i=$((i+1))
+  done
+  bad "$name not answering after $tries probes -> $url"
+  return 1
 }
 
 probe_tcp(){
