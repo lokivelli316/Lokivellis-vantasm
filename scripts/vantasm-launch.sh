@@ -219,7 +219,7 @@ if [ "$speech_smoke_ok" -ne 1 ]; then
   if grep -q "No module named 'phonemizer'" "$RUN_DIR/speech-smoke.log" 2>/dev/null || \
      grep -q "No module named 'phonemizer'" "$speech_wav" 2>/dev/null; then
     say "         detected incomplete Kokoro worker environment; reconciling local worker venv"
-    if [ -x "$SPEECH_ROOT/scripts/install-worker.sh" ]; then
+    if [ -f "$SPEECH_ROOT/scripts/install-worker.sh" ]; then
       (cd "$SPEECH_ROOT" && python3 -m lokivellispeech workers stop kokoro >/dev/null 2>&1 || true)
       if (cd "$SPEECH_ROOT" && bash scripts/install-worker.sh kokoro) >"$RUN_DIR/speech-repair.log" 2>&1; then
         (cd "$SPEECH_ROOT" && python3 -m lokivellispeech workers start kokoro) >>"$RUN_DIR/speech-repair.log" 2>&1 || true
@@ -236,6 +236,8 @@ if [ "$speech_smoke_ok" -ne 1 ]; then
         say "         worker installer failed:"
         sed "s/^/         /" "$RUN_DIR/speech-repair.log" 2>/dev/null | tail -n 30
       fi
+    else
+      say "         worker installer missing: $SPEECH_ROOT/scripts/install-worker.sh"
     fi
   fi
 fi
