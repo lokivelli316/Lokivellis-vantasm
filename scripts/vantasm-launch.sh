@@ -15,6 +15,9 @@ PACK_LOG="$RUN_DIR/pack.log"
 
 pass=0
 hold=0
+control_ok=0
+bridge_ok=0
+pack_ok=0
 
 say(){ printf '%s\n' "$*"; }
 ok(){ pass=$((pass+1)); say "  [PASS] $*"; }
@@ -49,16 +52,16 @@ if [ "$restart_needed" -eq 1 ]; then
   fi
   sleep 1
   if "$CORE" up >$UP_LOG 2>&1; then
-    ok "Surgeon reconciled/restarted"
+    control_ok=1; ok "Surgeon reconciled/restarted"
   else
     bad "Surgeon restart failed"
     cat "$UP_LOG" 2>/dev/null || true
   fi
 else
   if curl -fsS --max-time 5 http://127.0.0.1:8765/healthz >/dev/null 2>&1; then
-    ok "Surgeon already healthy"
+    control_ok=1; ok "Surgeon already healthy"
   elif "$CORE" up >$UP_LOG 2>&1; then
-    ok "Surgeon started"
+    control_ok=1; ok "Surgeon started"
   else
     bad "Surgeon unavailable"
   fi
@@ -67,7 +70,7 @@ fi
 say "2) Tunnel + stable bridge"
 if [ -x "$BRIDGE" ]; then
   if "$BRIDGE" >$BRIDGE_LOG 2>&1; then
-    ok "Tunnel published and stable bridge verified"
+    bridge_ok=1; ok "Tunnel published and stable bridge verified"
   else
     bad "Tunnel/bridge reconciliation failed"
     tail -n 20 "$BRIDGE_LOG" 2>/dev/null || true
@@ -79,7 +82,7 @@ fi
 say "3) Pack activation"
 if [ -d "$PACK_ROOT" ] && [ -f "$PACK_ROOT/pack_activation.py" ]; then
   if (cd "$PACK_ROOT" && python pack_activation.py --apply --start) >$PACK_LOG 2>&1; then
-    ok "pack_activation.py --apply --start completed"
+    pack_ok=1; ok "pack_activation.py --apply --start completed"
   else
     bad "Pack activation returned non-zero"
   fi
@@ -89,6 +92,9 @@ else
 fi
 
 say "4) Runtime probes"
+if [ "$control_ok" -ne 1 ]; then
+  bad "Primary control-plane failure; runtime probes skipped to avoid cascade noise"
+else
 probe_http(){
   name="$1"; url="$2"
   if curl -fsS --max-time 8 "$url" >/dev/null 2>&1; then ok "$name -> $url"; else bad "$name not answering -> $url"; fi
@@ -109,6 +115,8 @@ fi
 
 probe_tcp "T3MP3ST" 3333
 probe_tcp "Dragon Ball" 8790
+
+fi
 
 say "5) Watcher"
 if pgrep -f 'vantasm.*watch' >/dev/null 2>&1; then
