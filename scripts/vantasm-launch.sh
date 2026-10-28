@@ -8,6 +8,7 @@ PACK_ROOT="${VANTASM_PACK_ROOT:-$HOME/nemotron-v0451-live}"
 STAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 CANONICAL_SURGEON_PORT=8765
 export FORGE_SURGEON_PORT="$CANONICAL_SURGEON_PORT"
+SURGEON_PORT="$CANONICAL_SURGEON_PORT"
 RUN_DIR="${VANTASM_RUN_DIR:-$H/runtime/launch}"
 mkdir -p "$RUN_DIR"
 chmod 700 "$RUN_DIR" 2>/dev/null || true
