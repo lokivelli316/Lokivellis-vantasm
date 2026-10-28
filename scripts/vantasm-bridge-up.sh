@@ -45,7 +45,27 @@ if ! curl -fsS --max-time 20 "$url/healthz" >/dev/null; then
   if [ -z "$url" ]; then
     url="$(grep -RhoE 'https://[a-z0-9-]+\\.trycloudflare\\.com' "$H/logs" "$H/runtime" 2>/dev/null | tail -n1 || true)"
   fi
-  [ -n "$url" ] || { echo "HOLD: no fresh trycloudflare URL discovered after recycle."; exit 5; }
+
+  if [ -z "$url" ]; then
+    TUN_LOG="$H/logs/cloudflared-quick.log"
+    mkdir -p "$H/logs" "$H/runtime"
+    : >"$TUN_LOG"
+    nohup cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:${SURGEON_PORT}" \
+      >"$TUN_LOG" 2>&1 </dev/null &
+    echo $! >"$H/runtime/cloudflared-quick.pid"
+
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      url="$(grep -Eo 'https://[a-z0-9-]+\\.trycloudflare\\.com' "$TUN_LOG" | tail -n1 || true)"
+      [ -n "$url" ] && break
+      sleep 1
+    done
+  fi
+
+  [ -n "$url" ] || {
+    echo "HOLD: cloudflared did not produce a fresh trycloudflare URL."
+    tail -n 25 "$H/logs/cloudflared-quick.log" 2>/dev/null || true
+    exit 5
+  }
 
   ok=0
   for _ in 1 2 3 4 5 6; do
