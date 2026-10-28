@@ -46,7 +46,10 @@ if ! curl -fsS --max-time 20 "$url/healthz" >/dev/null; then
   sleep 1
 
   : >"$TUN_LOG"
-  nohup cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:${SURGEON_PORT}" \
+  nohup cloudflared tunnel --no-autoupdate \
+    --protocol http2 \
+    --edge-ip-version 4 \
+    --url "http://127.0.0.1:${SURGEON_PORT}" \
     >"$TUN_LOG" 2>&1 </dev/null &
   echo $! >"$TUN_PID"
 
