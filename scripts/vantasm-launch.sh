@@ -6,6 +6,8 @@ CORE="${VANTASM_CORE_BIN:-$H/vantasm-core}"
 BRIDGE="${VANTASM_BRIDGE_BIN:-$H/vantasm-bridge-up}"
 PACK_ROOT="${VANTASM_PACK_ROOT:-$HOME/nemotron-v0451-live}"
 STAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+CANONICAL_SURGEON_PORT=8765
+export FORGE_SURGEON_PORT="$CANONICAL_SURGEON_PORT"
 RUN_DIR="${VANTASM_RUN_DIR:-$H/runtime/launch}"
 mkdir -p "$RUN_DIR"
 chmod 700 "$RUN_DIR" 2>/dev/null || true
@@ -58,7 +60,7 @@ if [ "$restart_needed" -eq 1 ]; then
     cat "$UP_LOG" 2>/dev/null || true
   fi
 else
-  if curl -fsS --max-time 5 http://127.0.0.1:8765/healthz >/dev/null 2>&1; then
+  if curl -fsS --max-time 5 http://127.0.0.1:$SURGEON_PORT/healthz >/dev/null 2>&1; then
     control_ok=1; ok "Surgeon already healthy"
   elif "$CORE" up >$UP_LOG 2>&1; then
     control_ok=1; ok "Surgeon started"
@@ -115,7 +117,7 @@ probe_tcp(){
   if (echo >/dev/tcp/127.0.0.1/"$port") >/dev/null 2>&1; then ok "$name listening on 127.0.0.1:$port"; else bad "$name not listening on 127.0.0.1:$port"; fi
 }
 
-probe_http "Vantasm" "http://127.0.0.1:8765/healthz"
+probe_http "Vantasm" "http://127.0.0.1:$SURGEON_PORT/healthz"
 
 if curl -fsS --max-time 8 http://127.0.0.1:8788/health >/dev/null 2>&1 ||    curl -fsS --max-time 8 http://127.0.0.1:8788/ready >/dev/null 2>&1; then
   ok "LokivelliSpeech answering on 8788"
@@ -128,7 +130,64 @@ probe_tcp "Dragon Ball" 8790
 
 fi
 
-say "5) Watcher"
+say "5) Generator + live Speech smoke"
+
+GEN_PORT=8795
+gen_up=0
+if (echo >/dev/tcp/127.0.0.1/"$GEN_PORT") >/dev/null 2>&1; then
+  gen_up=1
+else
+  if [ -d "$PACK_ROOT" ]; then
+    if [ -x "$PACK_ROOT/start.sh" ]; then
+      (cd "$PACK_ROOT" && nohup ./start.sh >"$RUN_DIR/generator.log" 2>&1 </dev/null &) || true
+    elif [ -x "$PACK_ROOT/GO.sh" ]; then
+      (cd "$PACK_ROOT" && nohup ./GO.sh >"$RUN_DIR/generator.log" 2>&1 </dev/null &) || true
+    fi
+    i=1
+    while [ "$i" -le 8 ]; do
+      if (echo >/dev/tcp/127.0.0.1/"$GEN_PORT") >/dev/null 2>&1; then gen_up=1; break; fi
+      sleep 1
+      i=$((i+1))
+    done
+  fi
+fi
+if [ "$gen_up" -eq 1 ]; then ok "Generator listening on 127.0.0.1:$GEN_PORT"; else bad "Generator not listening on 127.0.0.1:$GEN_PORT"; fi
+
+speech_wav="$RUN_DIR/speech-smoke.wav"
+rm -f "$speech_wav"
+if curl -fsS --max-time 45 \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"kokoro","voice":"af_heart","input":"Vantasm live speech smoke test."}' \
+  http://127.0.0.1:8788/v1/audio/speech \
+  -o "$speech_wav" >/dev/null 2>&1; then
+  if python - "$speech_wav" <<'PY'
+import sys, wave, math, struct
+p=sys.argv[1]
+with wave.open(p,'rb') as w:
+    n=w.getnframes()
+    sw=w.getsampwidth()
+    ch=w.getnchannels()
+    rate=w.getframerate()
+    data=w.readframes(n)
+if n <= 0 or sw != 2:
+    raise SystemExit(1)
+vals=struct.unpack("<%dh"%(len(data)//2),data)
+rms=math.sqrt(sum(v*v for v in vals)/max(1,len(vals)))
+dur=n/float(rate)
+if rms <= 1 or dur <= 0.05:
+    raise SystemExit(1)
+print(f"speech smoke: {dur:.2f}s {rate}Hz ch={ch} rms={rms:.1f}")
+PY
+  then
+    ok "Live /v1/audio/speech synthesis produced non-silent WAV"
+  else
+    bad "Speech POST returned WAV but audio sanity check failed"
+  fi
+else
+  bad "Live /v1/audio/speech synthesis request failed"
+fi
+
+say "6) Watcher"
 if pgrep -f 'vantasm.*watch' >/dev/null 2>&1; then
   ok "Watcher already running"
 else
