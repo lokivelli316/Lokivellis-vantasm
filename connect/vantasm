@@ -1,0 +1,23 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# Vantasm CLI shim. Dispatches to the Surgeon control surface in the install's
+# venv, so doctor/health/status/up/down are machine-readable and work from any
+# CWD. No device-specific paths: everything derives from $FORGE_SURGEON_HOME.
+set -euo pipefail
+H="${FORGE_SURGEON_HOME:-$HOME/.forge-surgeon}"
+APP="$H/app"
+PY="$H/venv/bin/python"
+
+# Fall back to the source tree if run before install (doctor still works).
+if [ ! -x "$PY" ]; then PY="$(command -v python3 || command -v python)"; fi
+if [ ! -d "$APP/surgeon" ]; then APP="$(cd "$(dirname "$0")/.." && pwd)"; fi
+
+cmd="${1:-doctor}"; shift || true
+case "$cmd" in
+  doctor|status|health|up|down)
+    exec env PYTHONPATH="$APP${PYTHONPATH:+:$PYTHONPATH}" "$PY" -m surgeon.doctor "$cmd" "$@" ;;
+  version)
+    cat "$APP/VERSION" 2>/dev/null || echo "unknown" ;;
+  *)
+    echo "{\"service\":\"vantasm\",\"status\":\"HOLD\",\"detail\":\"unknown command '$cmd'; use doctor|status|health|up|down\"}" >&2
+    exit 2 ;;
+esac

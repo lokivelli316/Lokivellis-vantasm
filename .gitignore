@@ -22,3 +22,6 @@ venv/
 private/
 evidence/
 *.local.*
+
+# local snapshot of installed code (scripts/pin-app-path.sh); reviewed before anything is committed
+_installed/
