@@ -50,6 +50,13 @@ if [ -z "$CHROMIUM" ]; then
   exit 4
 fi
 
+MIN_FREE_KB="${LOKIVELLI_MIN_EXTERNAL_FREE_KB:-4194304}"
+FREE_KB="$(df -Pk "$HOME" 2>/dev/null | awk 'NR==2 {print $4}')"
+if [ -n "$FREE_KB" ] && [ "$FREE_KB" -lt "$MIN_FREE_KB" ]; then
+  say "[HOLD] Chromium installed, but less than 4 GiB remains; refusing npm/browser setup"
+  exit 4
+fi
+
 rm -rf "$PW_ROOT" 2>/dev/null || true
 mkdir -p "$PW_ROOT"
 
