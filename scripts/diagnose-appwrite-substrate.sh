@@ -1,6 +1,9 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u -o pipefail
 
+export TMPDIR="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}"
+mkdir -p "$TMPDIR" 2>/dev/null || true
+
 say(){ printf '%s\n' "$*"; }
 have(){ command -v "$1" >/dev/null 2>&1; }
 
@@ -14,16 +17,19 @@ say
 
 say "--- USER / ROOT ---"
 id 2>/dev/null || true
+SU_OUT="$TMPDIR/vantasm-su-id.$"
+SU_ERR="$TMPDIR/vantasm-su-err.$"
 if have su; then
-  if su -c id >/tmp/vantasm-su-id.$$ 2>/dev/null; then
+  if su -c id >"$SU_OUT" 2>"$SU_ERR"; then
     say "root_access: YES"
-    cat /tmp/vantasm-su-id.$$
+    cat "$SU_OUT"
     ROOT_OK=1
   else
     say "root_access: NO"
+    cat "$SU_ERR" 2>/dev/null || true
     ROOT_OK=0
   fi
-  rm -f /tmp/vantasm-su-id.$$ 2>/dev/null || true
+  rm -f "$SU_OUT" "$SU_ERR" 2>/dev/null || true
 else
   say "root_access: NO (su not found)"
   ROOT_OK=0
@@ -40,16 +46,18 @@ fi
 say
 
 say "--- DOCKER DAEMON ---"
-if have docker && docker info >/tmp/vantasm-docker-info.$$ 2>/tmp/vantasm-docker-err.$$; then
+DOCKER_OUT="$TMPDIR/vantasm-docker-info.$"
+DOCKER_ERR="$TMPDIR/vantasm-docker-err.$"
+if have docker && docker info >"$DOCKER_OUT" 2>"$DOCKER_ERR"; then
   say "docker_daemon: REACHABLE"
-  head -n 30 /tmp/vantasm-docker-info.$$ 2>/dev/null || true
+  head -n 30 "$DOCKER_OUT" 2>/dev/null || true
   DOCKER_OK=1
 else
   say "docker_daemon: UNAVAILABLE"
-  head -n 20 /tmp/vantasm-docker-err.$$ 2>/dev/null || true
+  head -n 20 "$DOCKER_ERR" 2>/dev/null || true
   DOCKER_OK=0
 fi
-rm -f /tmp/vantasm-docker-info.$$ /tmp/vantasm-docker-err.$$ 2>/dev/null || true
+rm -f "$DOCKER_OUT" "$DOCKER_ERR" 2>/dev/null || true
 say
 
 say "--- KERNEL FEATURES ---"
@@ -67,6 +75,19 @@ if [ -f /sys/fs/cgroup/cgroup.controllers ]; then
   cat /sys/fs/cgroup/cgroup.controllers 2>/dev/null || true
 else
   say "cgroup_v2: NO/UNKNOWN"
+fi
+
+say
+say "--- CGROUP / NAMESPACE DETAIL ---"
+cat /proc/self/cgroup 2>/dev/null || true
+mount 2>/dev/null | grep -E 'cgroup|overlay|fuse' || true
+[ -e /dev/fuse ] && ls -l /dev/fuse 2>/dev/null || say "/dev/fuse: MISSING"
+[ -w /sys/fs/cgroup ] && say "cgroup_root_writable: YES" || say "cgroup_root_writable: NO"
+if [ -r /proc/sys/kernel/unprivileged_userns_clone ]; then
+  printf 'unprivileged_userns_clone: '
+  cat /proc/sys/kernel/unprivileged_userns_clone 2>/dev/null || true
+else
+  say "unprivileged_userns_clone: UNAVAILABLE"
 fi
 
 for f in   /proc/sys/net/ipv4/ip_forward   /proc/sys/user/max_user_namespaces   /sys/module/overlay   /sys/fs/cgroup
