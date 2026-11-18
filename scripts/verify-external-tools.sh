@@ -25,14 +25,23 @@ check() {
   rm -f "$tmp"
 }
 cmdv() { command -v "$1"; }
+mcp_smoke() {
+  command -v md-anything-mcp >/dev/null 2>&1 || return 1
+  timeout 3 md-anything-mcp </dev/null >/dev/null 2>&1
+  local rc=$?
+  [ "$rc" -eq 0 ] || [ "$rc" -eq 124 ]
+}
+playwright_smoke() {
+  PLAYWRIGHT_BROWSERS_PATH=0 npx -y @playwright/cli@latest --version
+}
 
 check "uv" uv --version
 check "md-anything" mda --help
-check "md-anything-mcp" cmdv md-anything-mcp
+check "md-anything-mcp" mcp_smoke
 check "download-anything" da doctor --json
 check "lemmeknow" lemmeknow --version
 check "CLI-Anything hub" sh -c 'command -v cli-hub || command -v cli-anything-hub || command -v cli-anything'
-check "Playwright CLI" npx -y @playwright/cli@latest --version
+check "Playwright CLI" playwright_smoke
 check "rust-anything" rust-anything --version
 check "OpenClaude" openclaude --version
 check "SkillEvaluator" skillevaluator --version
