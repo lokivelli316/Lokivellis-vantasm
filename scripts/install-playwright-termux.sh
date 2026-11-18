@@ -60,41 +60,43 @@ fi
 rm -rf "$PW_ROOT" 2>/dev/null || true
 mkdir -p "$PW_ROOT"
 
-if ! PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --prefix "$PW_ROOT" @playwright/cli@latest >"$LOG_DIR/npm-install.log" 2>&1; then
-  say "[HOLD] @playwright/cli npm install failed"
+CLI_VERSION="$(npm view @playwright/cli version --json --no-update-notifier 2>/dev/null | tr -d '"[:space:]')"
+[ -n "$CLI_VERSION" ] || CLI_VERSION="0.1.24"
+PW_STABLE_VERSION="${LOKIVELLI_PLAYWRIGHT_STABLE_VERSION:-1.65.1}"
+
+cat >"$PW_ROOT/package.json" <<EOF
+{
+  "name": "lokivelli-playwright-termux-adapter",
+  "private": true,
+  "dependencies": {
+    "@playwright/cli": "$CLI_VERSION"
+  },
+  "overrides": {
+    "playwright": "$PW_STABLE_VERSION",
+    "playwright-core": "$PW_STABLE_VERSION"
+  }
+}
+EOF
+
+if ! PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 NO_UPDATE_NOTIFIER=1 npm install --prefix "$PW_ROOT" --omit=dev >"$LOG_DIR/npm-install.log" 2>&1; then
+  say "[HOLD] @playwright/cli stable-core adapter npm install failed"
   tail_log "$LOG_DIR/npm-install.log"
   exit 4
 fi
 
-CORE_BUNDLE="$PW_ROOT/node_modules/playwright-core/lib/coreBundle.js"
-if [ -f "$CORE_BUNDLE" ]; then
-  if ! python3 - "$CORE_BUNDLE" >"$LOG_DIR/cache-adapter.log" 2>&1 <<'PY'
-from pathlib import Path
-import sys
+CLI_INSTALLED="$(node -p "require('$PW_ROOT/node_modules/@playwright/cli/package.json').version" 2>/dev/null || true)"
+CORE_INSTALLED="$(node -p "require('$PW_ROOT/node_modules/playwright-core/package.json').version" 2>/dev/null || true)"
+PLAYWRIGHT_INSTALLED="$(node -p "require('$PW_ROOT/node_modules/playwright/package.json').version" 2>/dev/null || true)"
+{
+  echo "@playwright/cli=$CLI_INSTALLED"
+  echo "playwright=$PLAYWRIGHT_INSTALLED"
+  echo "playwright-core=$CORE_INSTALLED"
+} >"$LOG_DIR/versions.txt"
 
-p = Path(sys.argv[1])
-s = p.read_text()
-start = s.find("function computeDefaultCacheDirectory()")
-if start < 0:
-    raise SystemExit("computeDefaultCacheDirectory() not found")
-end = s.find("function defaultCacheDirectory()", start)
-if end < 0:
-    raise SystemExit("defaultCacheDirectory() boundary not found")
-chunk = s[start:end]
-if 'process.platform === "android"' not in chunk:
-    old = 'process.platform === "linux"'
-    if old not in chunk:
-        raise SystemExit("linux cache-directory condition not found")
-    chunk = chunk.replace(old, '(process.platform === "linux" || process.platform === "android")', 1)
-    s = s[:start] + chunk + s[end:]
-    p.write_text(s)
-print("Termux cache-directory adapter applied")
-PY
-  then
-    say "[HOLD] Playwright core cache-path adapter failed"
-    tail_log "$LOG_DIR/cache-adapter.log"
-    exit 4
-  fi
+if [ "$CORE_INSTALLED" != "$PW_STABLE_VERSION" ] || [ "$PLAYWRIGHT_INSTALLED" != "$PW_STABLE_VERSION" ]; then
+  say "[HOLD] npm override did not pin Playwright/core to stable $PW_STABLE_VERSION"
+  cat "$LOG_DIR/versions.txt"
+  exit 4
 fi
 
 cat >"$PW_CONFIG" <<EOF
@@ -122,19 +124,38 @@ cat >"$BIN/playwright-cli" <<EOF
 #!/data/data/com.termux/files/usr/bin/bash
 export PLAYWRIGHT_BROWSERS_PATH=0
 export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-export PLAYWRIGHT_MCP_EXECUTABLE_PATH="$CHROMIUM"
-export PLAYWRIGHT_MCP_CONFIG="$PW_CONFIG"
-exec node "$PW_ENTRY" "\$@"
+export NO_UPDATE_NOTIFIER=1
+
+PW_CONFIG="$PW_CONFIG"
+PW_ENTRY="$PW_ENTRY"
+
+args=("\$@")
+has_config=0
+is_open=0
+for arg in "\${args[@]}"; do
+  case "\$arg" in
+    --config|--config=*) has_config=1 ;;
+    open) is_open=1 ;;
+  esac
+done
+
+if [ "\$is_open" -eq 1 ] && [ "\$has_config" -eq 0 ]; then
+  args+=("--config=\$PW_CONFIG")
+fi
+
+exec node "\$PW_ENTRY" "\${args[@]}"
 EOF
 chmod 755 "$BIN/playwright-cli"
 
 if smoke; then
-  say "[PASS] Playwright CLI Termux adapter launched native Chromium and captured a snapshot"
+  say "[PASS] Playwright CLI Termux adapter: current CLI + stable core + native Chromium smoke passed"
+  cat "$LOG_DIR/versions.txt"
   exit 0
 fi
 
 "$BIN/playwright-cli" -s=vantasm-smoke close >/dev/null 2>&1 || true
-say "[HOLD] Playwright CLI adapter installed but native Chromium smoke failed"
+say "[HOLD] Playwright CLI stable-core adapter installed but native Chromium smoke failed"
+cat "$LOG_DIR/versions.txt" 2>/dev/null || true
 tail_log "$LOG_DIR/version.log"
 tail_log "$LOG_DIR/open.log"
 tail_log "$LOG_DIR/snapshot.log"
