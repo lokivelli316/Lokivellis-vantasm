@@ -61,8 +61,7 @@ rm -rf "$PW_ROOT" 2>/dev/null || true
 mkdir -p "$PW_ROOT"
 
 CLI_VERSION="$(npm view @playwright/cli version --no-update-notifier 2>/dev/null | tail -n 1 | tr -d '[:space:]')"
-[ -n "$CLI_VERSION" ] || CLI_VERSION="0.1.24"
-PW_STABLE_VERSION="${LOKIVELLI_PLAYWRIGHT_STABLE_VERSION:-1.65.1}"
+[ -n "$CLI_VERSION" ] || CLI_VERSION="0.1.25"
 
 cat >"$PW_ROOT/package.json" <<EOF
 {
@@ -70,16 +69,12 @@ cat >"$PW_ROOT/package.json" <<EOF
   "private": true,
   "dependencies": {
     "@playwright/cli": "$CLI_VERSION"
-  },
-  "overrides": {
-    "playwright": "$PW_STABLE_VERSION",
-    "playwright-core": "$PW_STABLE_VERSION"
   }
 }
 EOF
 
 if ! PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 NO_UPDATE_NOTIFIER=1 npm install --prefix "$PW_ROOT" --omit=dev >"$LOG_DIR/npm-install.log" 2>&1; then
-  say "[HOLD] @playwright/cli stable-core adapter npm install failed"
+  say "[HOLD] @playwright/cli npm install failed"
   tail_log "$LOG_DIR/npm-install.log"
   exit 4
 fi
@@ -92,12 +87,6 @@ PLAYWRIGHT_INSTALLED="$(node -p "require('$PW_ROOT/node_modules/playwright/packa
   echo "playwright=$PLAYWRIGHT_INSTALLED"
   echo "playwright-core=$CORE_INSTALLED"
 } >"$LOG_DIR/versions.txt"
-
-if [ "$CORE_INSTALLED" != "$PW_STABLE_VERSION" ] || [ "$PLAYWRIGHT_INSTALLED" != "$PW_STABLE_VERSION" ]; then
-  say "[HOLD] npm override did not pin Playwright/core to stable $PW_STABLE_VERSION"
-  cat "$LOG_DIR/versions.txt"
-  exit 4
-fi
 
 cat >"$PW_CONFIG" <<EOF
 {
@@ -120,41 +109,54 @@ if [ ! -f "$PW_ENTRY" ]; then
   exit 4
 fi
 
+PW_PLATFORM_SHIM="$ROOT/playwright-termux-platform-shim.cjs"
+cat >"$PW_PLATFORM_SHIM" <<'EOF'
+const descriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+if (!descriptor || descriptor.configurable !== false) {
+  Object.defineProperty(process, 'platform', {
+    value: 'linux',
+    enumerable: descriptor ? descriptor.enumerable : true,
+    configurable: true
+  });
+}
+EOF
+
 cat >"$BIN/playwright-cli" <<EOF
 #!/data/data/com.termux/files/usr/bin/bash
 export PLAYWRIGHT_BROWSERS_PATH=0
 export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 export NO_UPDATE_NOTIFIER=1
+export NODE_OPTIONS="--require $PW_PLATFORM_SHIM ${NODE_OPTIONS:-}"
 
 PW_CONFIG="$PW_CONFIG"
 PW_ENTRY="$PW_ENTRY"
 
-args=("\$@")
+args=("$@")
 has_config=0
 is_open=0
-for arg in "\${args[@]}"; do
-  case "\$arg" in
+for arg in "${args[@]}"; do
+  case "$arg" in
     --config|--config=*) has_config=1 ;;
     open) is_open=1 ;;
   esac
 done
 
-if [ "\$is_open" -eq 1 ] && [ "\$has_config" -eq 0 ]; then
-  args+=("--config=\$PW_CONFIG")
+if [ "$is_open" -eq 1 ] && [ "$has_config" -eq 0 ]; then
+  args+=("--config=$PW_CONFIG")
 fi
 
-exec node "\$PW_ENTRY" "\${args[@]}"
+exec node "$PW_ENTRY" "${args[@]}"
 EOF
 chmod 755 "$BIN/playwright-cli"
 
 if smoke; then
-  say "[PASS] Playwright CLI Termux adapter: current CLI + stable core + native Chromium smoke passed"
+  say "[PASS] Playwright CLI Termux adapter: exact CLI dependencies + platform shim + native Chromium smoke passed"
   cat "$LOG_DIR/versions.txt"
   exit 0
 fi
 
 "$BIN/playwright-cli" -s=vantasm-smoke close >/dev/null 2>&1 || true
-say "[HOLD] Playwright CLI stable-core adapter installed but native Chromium smoke failed"
+say "[HOLD] Playwright CLI platform-shim adapter installed but native Chromium smoke failed"
 cat "$LOG_DIR/versions.txt" 2>/dev/null || true
 tail_log "$LOG_DIR/version.log"
 tail_log "$LOG_DIR/open.log"
