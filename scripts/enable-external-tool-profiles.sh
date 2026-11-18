@@ -31,7 +31,7 @@ cmd["external_tools_install"]={
   "argv":["bash",str(Path(repo)/"scripts"/"install-external-tools.sh")],
   "timeout":7200,
   "mutating":True,
-  "affected_paths":[str(Path(ext).expanduser()),str(Path.home()/".agents"/"skills"),str(Path.home()/".claude"/"skills")]
+  "affected_paths":[str(Path(ext).expanduser()),str(Path.home()/".agents"/"skills"),str(Path.home()/".claude"/"skills"),str(Path.home()/".codex"),str(Path.home()/".cursor"),str(Path.home()/".gemini"),str(Path.home()/".hermes")]
 }
 cmd["external_tools_verify"]={
   "argv":["bash",str(Path(repo)/"scripts"/"verify-external-tools.sh")],
