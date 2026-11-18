@@ -71,7 +71,7 @@ if [ -d "$DA_SRC" ]; then
   # does not rebuild cryptography's Rust stack inside this venv.
   python3 -m venv --system-site-packages "$VENVS/download-anything" >"$LOGS/download-anything.log" 2>&1 || true
   if [ -x "$VENVS/download-anything/bin/python" ]; then
-    "$VENVS/download-anything/bin/python" -m pip install -U pip setuptools wheel >>"$LOGS/download-anything.log" 2>&1 || true
+    "$VENVS/download-anything/bin/python" -m pip install -U pip setuptools wheel hatchling >>"$LOGS/download-anything.log" 2>&1 || true
     "$VENVS/download-anything/bin/python" - <<'PY' >>"$LOGS/download-anything.log" 2>&1 || true
 import cryptography
 print("system cryptography:", cryptography.__version__)
