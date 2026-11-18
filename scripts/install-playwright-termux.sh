@@ -126,26 +126,26 @@ cat >"$BIN/playwright-cli" <<EOF
 export PLAYWRIGHT_BROWSERS_PATH=0
 export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 export NO_UPDATE_NOTIFIER=1
-export NODE_OPTIONS="--require $PW_PLATFORM_SHIM ${NODE_OPTIONS:-}"
+export NODE_OPTIONS="--require $PW_PLATFORM_SHIM \${NODE_OPTIONS:-}"
 
 PW_CONFIG="$PW_CONFIG"
 PW_ENTRY="$PW_ENTRY"
 
-args=("$@")
+args=("\$@")
 has_config=0
 is_open=0
-for arg in "${args[@]}"; do
-  case "$arg" in
+for arg in "\${args[@]}"; do
+  case "\$arg" in
     --config|--config=*) has_config=1 ;;
     open) is_open=1 ;;
   esac
 done
 
-if [ "$is_open" -eq 1 ] && [ "$has_config" -eq 0 ]; then
-  args+=("--config=$PW_CONFIG")
+if [ "\$is_open" -eq 1 ] && [ "\$has_config" -eq 0 ]; then
+  args+=("--config=\$PW_CONFIG")
 fi
 
-exec node "$PW_ENTRY" "${args[@]}"
+exec node "\$PW_ENTRY" "\${args[@]}"
 EOF
 chmod 755 "$BIN/playwright-cli"
 
