@@ -98,7 +98,7 @@ DA_SRC="$SRC/download-anything"
 if clone_or_update "download-anything-source" "https://github.com/nengong/download-anything.git" "$DA_SRC"; then
   rm -rf "$VENVS/download-anything" 2>/dev/null || true
   if python3 -m venv --system-site-packages "$VENVS/download-anything" >/dev/null 2>&1 &&
-     "$VENVS/download-anything/bin/python" -m pip install -U pip setuptools wheel >/dev/null 2>&1 &&
+     "$VENVS/download-anything/bin/python" -m pip install -U pip setuptools wheel hatchling >/dev/null 2>&1 &&
      "$VENVS/download-anything/bin/python" -m pip install --no-build-isolation "$DA_SRC" >/dev/null 2>&1; then
     [ -x "$VENVS/download-anything/bin/da" ] && ln -sf "$VENVS/download-anything/bin/da" "$BIN/da"
     [ -x "$VENVS/download-anything/bin/dl" ] && ln -sf "$VENVS/download-anything/bin/dl" "$BIN/dl"
