@@ -81,7 +81,7 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   printf 'PASS  %-28s daemon reachable\n' "Docker/Appwrite substrate"
   pass=$((pass+1))
 else
-  printf 'HOLD  %-28s Docker daemon unavailable; Appwrite self-host remains blocked\n' "Docker/Appwrite substrate"
+  printf 'HOLD  %-28s Docker daemon unavailable; run scripts/diagnose-appwrite-substrate.sh\n' "Docker/Appwrite substrate"
   hold=$((hold+1))
 fi
 
