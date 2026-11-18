@@ -148,7 +148,7 @@ clone_or_update "CLI-Anything-source" "https://github.com/HKUDS/CLI-Anything.git
 # the Playwright capture substrate through the Termux-native Chromium adapter.
 clone_or_update "CLI-Anything-WEB-source" "https://github.com/ItamarZand88/CLI-Anything-WEB.git" "$SRC/CLI-Anything-WEB" || true
 PW_HELPER="$(cd "$(dirname "$0")" && pwd)/install-playwright-termux.sh"
-if [ -x "$PW_HELPER" ] && "$PW_HELPER" "$RECEIPTS/playwright-termux-$STAMP"; then
+if [ -f "$PW_HELPER" ] && bash "$PW_HELPER" "$RECEIPTS/playwright-termux-$STAMP"; then
   record "CLI-Anything-WEB-playwright" PASS "Termux Chromium adapter installed and browser-smoke verified"
 else
   record "CLI-Anything-WEB-playwright" HOLD "Termux Playwright/Chromium adapter not runtime-ready"
