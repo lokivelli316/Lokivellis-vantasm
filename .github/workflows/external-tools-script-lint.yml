@@ -10,6 +10,10 @@ on:
       - 'scripts/cleanup-external-build-space.sh'
       - 'scripts/install-playwright-termux.sh'
       - 'scripts/diagnose-appwrite-substrate.sh'
+      - 'scripts/status-appwrite-qemu-vm.sh'
+      - 'scripts/start-appwrite-vm-installer.sh'
+      - 'scripts/run-appwrite-qemu-vm.sh'
+      - 'scripts/prepare-appwrite-qemu-vm.sh'
       - 'scripts/enable-external-tool-profiles.sh'
       - 'integrations/external-tool-registry-2026-11-18.json'
       - '.github/workflows/external-tools-script-lint.yml'
@@ -34,6 +38,10 @@ jobs:
           bash -n scripts/cleanup-external-build-space.sh
           bash -n scripts/install-playwright-termux.sh
           bash -n scripts/diagnose-appwrite-substrate.sh
+          bash -n scripts/status-appwrite-qemu-vm.sh
+          bash -n scripts/start-appwrite-vm-installer.sh
+          bash -n scripts/run-appwrite-qemu-vm.sh
+          bash -n scripts/prepare-appwrite-qemu-vm.sh
           bash -n scripts/enable-external-tool-profiles.sh
       - name: Registry JSON syntax
         run: python3 -m json.tool integrations/external-tool-registry-2026-11-18.json >/dev/null
