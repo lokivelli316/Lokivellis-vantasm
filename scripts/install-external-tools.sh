@@ -15,6 +15,16 @@ chmod 700 "$ROOT" "$RECEIPTS" 2>/dev/null || true
 
 export PATH="$BIN:$NPM_ROOT/bin:$CARGO_HOME/bin:$HOME/.local/bin:$PATH"
 export CARGO_HOME
+export TMPDIR="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}"
+mkdir -p "$TMPDIR" 2>/dev/null || true
+
+MIN_FREE_KB="${LOKIVELLI_MIN_EXTERNAL_FREE_KB:-2097152}"
+FREE_KB="$(df -Pk "$HOME" 2>/dev/null | awk 'NR==2 {print $4}')"
+if [ -n "$FREE_KB" ] && [ "$FREE_KB" -lt "$MIN_FREE_KB" ]; then
+  printf 'HOLD: insufficient free space for external-tool install: %s KiB free; require at least %s KiB.\n' "$FREE_KB" "$MIN_FREE_KB"
+  printf 'Run: bash %s/cleanup-external-build-space.sh\n' "$(cd "$(dirname "$0")" && pwd)"
+  exit 4
+fi
 
 printf 'timestamp_utc\ttool\tstatus\tdetail\n' > "$RECEIPT"
 
@@ -58,6 +68,7 @@ done
 
 # Termux packages Rust host static std libraries separately; cargo build scripts/proc-macros need them.
 pkg_install rust-std-aarch64-linux-android || true
+pkg_install python-cryptography maturin || true
 
 # uv — prefer a Termux-native package. Do not pull a glibc standalone binary onto Android.
 if have uv; then
@@ -82,19 +93,22 @@ else
   record "md-anything" HOLD "npm unavailable"
 fi
 
-# download-anything — upstream-prescribed dedicated venv installer.
+# download-anything — Termux-native cryptography + final-path system-site venv.
 DA_SRC="$SRC/download-anything"
 if clone_or_update "download-anything-source" "https://github.com/nengong/download-anything.git" "$DA_SRC"; then
-  if python3 "$DA_SRC/skills/download-anything/scripts/install.py" --yes --venv "$VENVS/download-anything" >/dev/null 2>&1; then
+  rm -rf "$VENVS/download-anything" 2>/dev/null || true
+  if python3 -m venv --system-site-packages "$VENVS/download-anything" >/dev/null 2>&1 &&
+     "$VENVS/download-anything/bin/python" -m pip install -U pip setuptools wheel >/dev/null 2>&1 &&
+     "$VENVS/download-anything/bin/python" -m pip install --no-build-isolation "$DA_SRC" >/dev/null 2>&1; then
     [ -x "$VENVS/download-anything/bin/da" ] && ln -sf "$VENVS/download-anything/bin/da" "$BIN/da"
     [ -x "$VENVS/download-anything/bin/dl" ] && ln -sf "$VENVS/download-anything/bin/dl" "$BIN/dl"
     if "$VENVS/download-anything/bin/da" doctor --json > "$RECEIPTS/download-anything-doctor-$STAMP.json" 2>/dev/null; then
-      record "download-anything" PASS "CLI installed; doctor receipt written"
+      record "download-anything" PASS "CLI installed with Termux-native cryptography; doctor receipt written"
     else
       record "download-anything" HOLD "CLI installed but doctor did not return a clean result"
     fi
   else
-    record "download-anything" HOLD "upstream installer failed"
+    record "download-anything" HOLD "Termux-native venv/source install failed"
   fi
 fi
 
