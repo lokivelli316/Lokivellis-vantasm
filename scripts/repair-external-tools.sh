@@ -205,8 +205,8 @@ fi
 
 # 5) Playwright CLI — reusable Termux native-Chromium adapter.
 PW_HELPER="$(cd "$(dirname "$0")" && pwd)/install-playwright-termux.sh"
-if [ -x "$PW_HELPER" ]; then
-  if "$PW_HELPER" "$LOGS"; then
+if [ -f "$PW_HELPER" ]; then
+  if bash "$PW_HELPER" "$LOGS"; then
     say "[PASS] Playwright CLI Termux adapter verified"
   else
     say "[HOLD] Playwright CLI Termux adapter remains blocked"
