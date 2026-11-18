@@ -14,7 +14,7 @@ export TMPDIR="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}"
 mkdir -p "$TMPDIR" 2>/dev/null || true
 
 # Heavy Rust/Python builds can consume gigabytes. Refuse to drive Termux to ENOSPC.
-MIN_FREE_KB="${LOKIVELLI_MIN_EXTERNAL_FREE_KB:-2097152}"
+MIN_FREE_KB="${LOKIVELLI_MIN_EXTERNAL_FREE_KB:-4194304}"
 FREE_KB="$(df -Pk "$HOME" 2>/dev/null | awk 'NR==2 {print $4}')"
 if [ -n "$FREE_KB" ] && [ "$FREE_KB" -lt "$MIN_FREE_KB" ]; then
   printf 'HOLD: insufficient free space for external-tool repair: %s KiB free; require at least %s KiB.\n' "$FREE_KB" "$MIN_FREE_KB"
