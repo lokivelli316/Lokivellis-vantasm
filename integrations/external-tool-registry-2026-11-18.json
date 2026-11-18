@@ -1,0 +1,202 @@
+{
+  "schema_version": "1.0",
+  "recorded_utc": "2026-11-18",
+  "authority": "Integration candidates and reference tooling only. Forge Surgeon remains the policy, execution, receipt, HOLD, quarantine, and expected-state authority. Presence here does not mean installed, wired, trusted, or live.",
+  "tools": [
+    {
+      "id": "md-anything",
+      "upstream": "https://github.com/ojspace/md-anything",
+      "role": "document/media normalization",
+      "mode": "adapter-candidate",
+      "targets": [
+        "Lokivellis-vantasm",
+        "Lokivellis-research-lab",
+        "NotebookLM-Hydra",
+        "theory-report-debleeder"
+      ],
+      "boundary": "Stage normalized output with provenance; never promote normalized text over source authority."
+    },
+    {
+      "id": "download-anything",
+      "upstream": "https://github.com/nengong/download-anything",
+      "role": "bounded acquisition and verification",
+      "mode": "adapter-candidate",
+      "targets": [
+        "Lokivellis-research-lab",
+        "NotebookLM-Hydra",
+        "theory-report-debleeder"
+      ],
+      "boundary": "Acquisition lands in staging; source URL, hashes, and verification state remain explicit."
+    },
+    {
+      "id": "lemmeknow",
+      "upstream": "https://github.com/swanandx/lemmeknow",
+      "role": "unknown-input identification",
+      "mode": "preflight-candidate",
+      "targets": [
+        "Lokivelli-stack",
+        "termux-organizer-acatmo-",
+        "apk-organization-acatmo-",
+        "Lokivellis-vantasm"
+      ],
+      "boundary": "Identification is evidence for routing, not authority to execute or mutate."
+    },
+    {
+      "id": "CLI-Anything",
+      "upstream": "https://github.com/HKUDS/CLI-Anything",
+      "role": "agent-friendly CLI adapter generation",
+      "mode": "adapter-factory-candidate",
+      "targets": [
+        "Lokivellis-vantasm",
+        "localapi-insert-tool",
+        "nemotronUltragenerator",
+        "Omni-Forge1"
+      ],
+      "boundary": "Generated wrappers stay subordinate to existing application contracts and Surgeon safe execution profiles."
+    },
+    {
+      "id": "CLI-Anything-WEB",
+      "upstream": "https://github.com/ItamarZand88/CLI-Anything-WEB",
+      "role": "web-application CLI generation from observed traffic",
+      "mode": "experimental-adapter-candidate",
+      "targets": [
+        "Lokivellis-vantasm",
+        "localapi-insert-tool"
+      ],
+      "boundary": "Experimental and dependent on observed/undocumented web interfaces; never treated as a stable API contract without separate verification."
+    },
+    {
+      "id": "rust-anything",
+      "upstream": "https://github.com/erkamyaman/rust-anything",
+      "role": "behavior-recorded Rust migration/optimization",
+      "mode": "optimization-candidate",
+      "targets": [
+        "Lokivellis-vantasm",
+        "Lokivelli-stack",
+        "termux-organizer-acatmo-",
+        "Lokivellian-music-analyzer"
+      ],
+      "boundary": "Run on copies/staging with test data. Original behavior remains source of truth; record/diff/gate must pass before any lift or cutover."
+    },
+    {
+      "id": "harness-anything",
+      "upstream": "https://github.com/yb2460/harness-anything",
+      "role": "application harness architecture reference",
+      "mode": "reference-only",
+      "targets": [
+        "Lokivellis-vantasm",
+        "Friday",
+        "Lokivellispeech"
+      ],
+      "boundary": "Borrow architecture/patterns selectively; do not assume Windows/COM-oriented integrations are Termux-compatible."
+    },
+    {
+      "id": "openclaude",
+      "upstream": "https://github.com/Twigpine/openclaude",
+      "role": "replaceable coding-agent/operator surface",
+      "mode": "operator-candidate",
+      "targets": [
+        "Lokivellis-vantasm",
+        "nemotronUltragenerator"
+      ],
+      "boundary": "Operator/client only. It does not replace Forge Surgeon authority or receipts."
+    },
+    {
+      "id": "awesome-mcp-servers",
+      "upstream": "https://github.com/punkpeye/awesome-mcp-servers",
+      "role": "MCP discovery catalog",
+      "mode": "reference-catalog",
+      "targets": [
+        "Lokivellis-vantasm",
+        "localapi-insert-tool"
+      ],
+      "boundary": "Discovery is not authority. Every candidate still requires license, maintenance, permission, sandbox, and compatibility review."
+    },
+    {
+      "id": "cursor-plugins",
+      "upstream": "https://github.com/cursor/plugins",
+      "role": "plugin/skill packaging and agent CLI patterns",
+      "mode": "reference-only",
+      "targets": [
+        "Lokivellis-vantasm",
+        "nemotronUltragenerator",
+        "awesome-agent-skills"
+      ],
+      "boundary": "Use as packaging/compatibility reference without creating a Cursor runtime dependency."
+    },
+    {
+      "id": "uv",
+      "upstream": "https://github.com/astral-sh/uv",
+      "role": "Python environment/project/tool substrate",
+      "mode": "runtime-tool-candidate",
+      "targets": [
+        "Lokivellis-vantasm",
+        "Lokivellis-research-lab",
+        "NotebookLM-Hydra",
+        "Lokivelli-stack",
+        "Lokivellian-music-analyzer"
+      ],
+      "boundary": "Adopt per repository only after Termux/target-platform verification; lock and receipt dependency state."
+    },
+    {
+      "id": "NVIDIA-SkillEvaluator",
+      "upstream": "https://github.com/NVIDIA/SkillEvaluator",
+      "role": "skill quality/security/compatibility/live-impact gate",
+      "mode": "verification-candidate",
+      "targets": [
+        "Lokivellis-vantasm",
+        "awesome-agent-skills",
+        "agentic-awesome-skills",
+        "nemotronUltragenerator"
+      ],
+      "boundary": "INCOMPLETE remains INCOMPLETE when required scanners/evaluation cannot run. Do not collapse partial checks into PASS."
+    },
+    {
+      "id": "jquery",
+      "upstream": "https://github.com/jquery/jquery",
+      "role": "legacy/lightweight browser compatibility",
+      "mode": "conditional-reference",
+      "targets": [
+        "aegis-os",
+        "lokivelli-hub",
+        "Legacy_journal"
+      ],
+      "boundary": "No blanket adoption. Use only where an existing surface actually benefits and regression-test it."
+    },
+    {
+      "id": "stitch-skills",
+      "upstream": "https://github.com/google-labs-code/stitch-skills",
+      "role": "portable Agent Skill packaging reference",
+      "mode": "reference-only",
+      "targets": [
+        "Lokivellis-vantasm",
+        "nemotronUltragenerator",
+        "awesome-agent-skills"
+      ],
+      "boundary": "Use skill structure/validators/resources/examples as reference while preserving Vantasm authority boundaries."
+    },
+    {
+      "id": "Claude-BugHunter",
+      "upstream": "https://github.com/elementalsouls/Claude-BugHunter",
+      "role": "authorized security/audit skill corpus",
+      "mode": "security-isolated",
+      "targets": [
+        "T3MP3ST",
+        "Lokivellis-vantasm"
+      ],
+      "boundary": "Authorized testing/audit lane only; do not merge offensive testing capability into default operator execution."
+    },
+    {
+      "id": "Appwrite",
+      "upstream": "https://github.com/appwrite/appwrite",
+      "role": "full backend platform candidate",
+      "mode": "architecture-decision-only",
+      "targets": [
+        "Omni-Forge-Social",
+        "Forge-Relay-Exchange",
+        "Forgeinboxpluspushes"
+      ],
+      "boundary": "Auth/database/storage/functions/realtime adoption changes architecture; evaluate as a backend decision, not a utility dependency."
+    }
+  ]
+}
