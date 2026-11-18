@@ -219,9 +219,14 @@ playwright_termux_smoke() {
   return 0
 }
 
-if [ -x "$BIN/playwright-cli" ] && timeout 90 bash -c 'playwright_termux_smoke' 2>/dev/null; then
+if [ -x "$BIN/playwright-cli" ] &&
+   timeout 90 "$BIN/playwright-cli" --version >/dev/null 2>&1 &&
+   timeout 90 "$BIN/playwright-cli" -s=vantasm-smoke open about:blank >/dev/null 2>&1 &&
+   timeout 60 "$BIN/playwright-cli" -s=vantasm-smoke snapshot >/dev/null 2>&1; then
+  "$BIN/playwright-cli" -s=vantasm-smoke close >/dev/null 2>&1 || true
   say "[PASS] Playwright CLI Termux adapter already healthy"
 else
+  [ -x "$BIN/playwright-cli" ] && "$BIN/playwright-cli" -s=vantasm-smoke close >/dev/null 2>&1 || true
   # Chromium is maintained in Termux's X11 repository and installs chromium-browser.
   if ! have chromium-browser; then
     pkg_try x11-repo || true
