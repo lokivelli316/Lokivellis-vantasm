@@ -203,115 +203,16 @@ else
 fi
 fi
 
-# 5) Playwright CLI — Termux adapter using native Chromium, no Playwright browser download.
-PW_ROOT="$ROOT/playwright-cli"
-PW_CONFIG="$ROOT/playwright-cli.config.json"
-PW_ENTRY="$PW_ROOT/node_modules/@playwright/cli/playwright-cli.js"
-
-playwright_termux_smoke() {
-  "$BIN/playwright-cli" --version >/dev/null 2>&1 || return 1
-  "$BIN/playwright-cli" -s=vantasm-smoke open about:blank >/dev/null 2>&1 || return 1
-  "$BIN/playwright-cli" -s=vantasm-smoke snapshot >/dev/null 2>&1 || {
-    "$BIN/playwright-cli" -s=vantasm-smoke close >/dev/null 2>&1 || true
-    return 1
-  }
-  "$BIN/playwright-cli" -s=vantasm-smoke close >/dev/null 2>&1 || true
-  return 0
-}
-
-if [ -x "$BIN/playwright-cli" ] &&
-   timeout 90 "$BIN/playwright-cli" --version >/dev/null 2>&1 &&
-   timeout 90 "$BIN/playwright-cli" -s=vantasm-smoke open about:blank >/dev/null 2>&1 &&
-   timeout 60 "$BIN/playwright-cli" -s=vantasm-smoke snapshot >/dev/null 2>&1; then
-  "$BIN/playwright-cli" -s=vantasm-smoke close >/dev/null 2>&1 || true
-  say "[PASS] Playwright CLI Termux adapter already healthy"
-else
-  [ -x "$BIN/playwright-cli" ] && "$BIN/playwright-cli" -s=vantasm-smoke close >/dev/null 2>&1 || true
-  # Chromium is maintained in Termux's X11 repository and installs chromium-browser.
-  if ! have chromium-browser; then
-    pkg_try x11-repo || true
-    pkg_try chromium || true
-  fi
-
-  CHROMIUM="$(command -v chromium-browser 2>/dev/null || true)"
-  if [ -z "$CHROMIUM" ]; then
-    say "[HOLD] Playwright CLI: Termux Chromium is unavailable"
+# 5) Playwright CLI — reusable Termux native-Chromium adapter.
+PW_HELPER="$(cd "$(dirname "$0")" && pwd)/install-playwright-termux.sh"
+if [ -x "$PW_HELPER" ]; then
+  if "$PW_HELPER" "$LOGS"; then
+    say "[PASS] Playwright CLI Termux adapter verified"
   else
-    rm -rf "$PW_ROOT" 2>/dev/null || true
-    mkdir -p "$PW_ROOT"
-    if PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --prefix "$PW_ROOT" @playwright/cli@latest >"$LOGS/playwright-cli-install.log" 2>&1; then
-      CORE_BUNDLE="$PW_ROOT/node_modules/playwright-core/lib/coreBundle.js"
-
-      # Current @playwright/cli dependency can still evaluate Playwright's Linux-only
-      # cache-directory branch on Android. Adapt that one cache-path decision only;
-      # the browser itself remains Termux's native Chromium.
-      if [ -f "$CORE_BUNDLE" ]; then
-        python3 - "$CORE_BUNDLE" >>"$LOGS/playwright-cli-install.log" 2>&1 <<'PY'
-from pathlib import Path
-import sys
-
-p = Path(sys.argv[1])
-s = p.read_text()
-start = s.find("function computeDefaultCacheDirectory()")
-if start < 0:
-    raise SystemExit("computeDefaultCacheDirectory() not found")
-end = s.find("function defaultCacheDirectory()", start)
-if end < 0:
-    raise SystemExit("defaultCacheDirectory() boundary not found")
-chunk = s[start:end]
-if 'process.platform === "android"' not in chunk:
-    old = 'process.platform === "linux"'
-    if old not in chunk:
-        raise SystemExit("linux cache-directory condition not found")
-    chunk = chunk.replace(old, '(process.platform === "linux" || process.platform === "android")', 1)
-    s = s[:start] + chunk + s[end:]
-    p.write_text(s)
-print("Termux cache-directory adapter applied")
-PY
-      fi
-
-      cat >"$PW_CONFIG" <<EOF
-{
-  "browser": {
-    "browserName": "chromium",
-    "isolated": true,
-    "launchOptions": {
-      "executablePath": "$CHROMIUM",
-      "headless": true,
-      "chromiumSandbox": false,
-      "args": ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"]
-    }
-  }
-}
-EOF
-
-      cat >"$BIN/playwright-cli" <<EOF
-#!/data/data/com.termux/files/usr/bin/bash
-export PLAYWRIGHT_BROWSERS_PATH=0
-export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-export PLAYWRIGHT_MCP_EXECUTABLE_PATH="$CHROMIUM"
-export PLAYWRIGHT_MCP_CONFIG="$PW_CONFIG"
-exec node "$PW_ENTRY" "\$@"
-EOF
-      chmod 755 "$BIN/playwright-cli"
-
-      if timeout 90 "$BIN/playwright-cli" --version >"$LOGS/playwright-cli-version.log" 2>&1 &&
-         timeout 90 "$BIN/playwright-cli" -s=vantasm-smoke open about:blank >"$LOGS/playwright-cli-open.log" 2>&1 &&
-         timeout 60 "$BIN/playwright-cli" -s=vantasm-smoke snapshot >"$LOGS/playwright-cli-snapshot.log" 2>&1; then
-        "$BIN/playwright-cli" -s=vantasm-smoke close >/dev/null 2>&1 || true
-        say "[PASS] Playwright CLI Termux adapter launched native Chromium and captured a snapshot"
-      else
-        "$BIN/playwright-cli" -s=vantasm-smoke close >/dev/null 2>&1 || true
-        say "[HOLD] Playwright CLI Termux adapter installed but browser smoke failed"
-        tail_log "$LOGS/playwright-cli-version.log"
-        tail_log "$LOGS/playwright-cli-open.log"
-        tail_log "$LOGS/playwright-cli-snapshot.log"
-      fi
-    else
-      say "[HOLD] Playwright CLI npm install failed"
-      tail_log "$LOGS/playwright-cli-install.log"
-    fi
+    say "[HOLD] Playwright CLI Termux adapter remains blocked"
   fi
+else
+  say "[HOLD] Playwright CLI helper missing: $PW_HELPER"
 fi
 
 say
