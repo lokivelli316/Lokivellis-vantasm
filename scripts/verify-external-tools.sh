@@ -2,19 +2,27 @@
 set -u -o pipefail
 ROOT="${LOKIVELLI_EXTERNAL_ROOT:-$HOME/forge-tools}"
 export PATH="$ROOT/bin:$ROOT/npm/bin:$ROOT/cargo/bin:$HOME/.local/bin:$PATH"
+export TMPDIR="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}"
+mkdir -p "$TMPDIR" 2>/dev/null || true
 
 pass=0
 hold=0
 check() {
   local name="$1"; shift
-  if "$@" >/tmp/vantasm-ext-check.$$ 2>&1; then
-    printf 'PASS  %-28s %s\n' "$name" "$(head -n1 /tmp/vantasm-ext-check.$$)"
+  local tmp
+  tmp="$(mktemp "$TMPDIR/vantasm-ext-check.XXXXXX" 2>/dev/null || mktemp "$HOME/.vantasm-ext-check.XXXXXX")" || {
+    printf 'HOLD  %-28s cannot allocate writable temp file\n' "$name"
+    hold=$((hold+1))
+    return
+  }
+  if "$@" >"$tmp" 2>&1; then
+    printf 'PASS  %-28s %s\n' "$name" "$(head -n1 "$tmp")"
     pass=$((pass+1))
   else
-    printf 'HOLD  %-28s %s\n' "$name" "$(head -n1 /tmp/vantasm-ext-check.$$)"
+    printf 'HOLD  %-28s %s\n' "$name" "$(head -n1 "$tmp")"
     hold=$((hold+1))
   fi
-  rm -f /tmp/vantasm-ext-check.$$
+  rm -f "$tmp"
 }
 cmdv() { command -v "$1"; }
 
@@ -23,13 +31,16 @@ check "md-anything" mda --help
 check "md-anything-mcp" cmdv md-anything-mcp
 check "download-anything" da doctor --json
 check "lemmeknow" lemmeknow --version
-check "CLI-Anything hub" bash -lc 'command -v cli-hub || command -v cli-anything-hub || command -v cli-anything'
+check "CLI-Anything hub" sh -c 'command -v cli-hub || command -v cli-anything-hub || command -v cli-anything'
 check "Playwright CLI" npx -y @playwright/cli@latest --version
 check "rust-anything" rust-anything --version
 check "OpenClaude" openclaude --version
 check "SkillEvaluator" skillevaluator --version
 
-for d in   CLI-Anything CLI-Anything-WEB harness-anything awesome-mcp-servers cursor-plugins   jquery appwrite stitch-skills md-anything openclaude SkillEvaluator rust-anything uv   download-anything Claude-BugHunter
+for d in \
+  CLI-Anything CLI-Anything-WEB harness-anything awesome-mcp-servers cursor-plugins \
+  jquery appwrite stitch-skills md-anything openclaude SkillEvaluator rust-anything uv \
+  download-anything Claude-BugHunter
 do
   if [ -d "$ROOT/src/$d/.git" ]; then
     printf 'PASS  %-28s %s\n' "source:$d" "$(git -C "$ROOT/src/$d" rev-parse --short HEAD 2>/dev/null)"
