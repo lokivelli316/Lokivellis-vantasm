@@ -13,6 +13,15 @@ export CARGO_HOME
 export TMPDIR="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}"
 mkdir -p "$TMPDIR" 2>/dev/null || true
 
+# Heavy Rust/Python builds can consume gigabytes. Refuse to drive Termux to ENOSPC.
+MIN_FREE_KB="${LOKIVELLI_MIN_EXTERNAL_FREE_KB:-2097152}"
+FREE_KB="$(df -Pk "$HOME" 2>/dev/null | awk 'NR==2 {print $4}')"
+if [ -n "$FREE_KB" ] && [ "$FREE_KB" -lt "$MIN_FREE_KB" ]; then
+  printf 'HOLD: insufficient free space for external-tool repair: %s KiB free; require at least %s KiB.\n' "$FREE_KB" "$MIN_FREE_KB"
+  printf 'Run: bash %s/cleanup-external-build-space.sh\n' "$(cd "$(dirname "$0")" && pwd)"
+  exit 4
+fi
+
 say(){ printf '%s\n' "$*"; }
 tail_log(){ [ -f "$1" ] && tail -n 20 "$1"; }
 have(){ command -v "$1" >/dev/null 2>&1; }
@@ -37,7 +46,7 @@ pkg_try(){
 say "Repair receipts: $LOGS"
 
 # Build prerequisites commonly needed by Android source builds.
-pkg_try clang make cmake pkg-config rust rust-std-aarch64-linux-android git python openssl libffi libjpeg-turbo libpng freetype ffmpeg unzip || true
+pkg_try clang make cmake pkg-config rust rust-std-aarch64-linux-android git python python-cryptography maturin openssl libffi libjpeg-turbo libpng freetype ffmpeg unzip || true
 
 # Termux splits host Rust static standard libraries from rustc. Keep them version-matched.
 if have rustc; then
@@ -52,23 +61,24 @@ if have rustc; then
   } | tee "$LOGS/rust-toolchain.txt"
 fi
 
-# 1) Download Anything — rebuild directly at the final venv path so console-script shebangs stay valid.
+# 1) Download Anything — Termux-native cryptography, final-path venv, no moved shebangs.
 DA_SRC="$SRC/download-anything"
 if [ -d "$DA_SRC" ]; then
   rm -f "$BIN/da" "$BIN/dl" 2>/dev/null || true
   rm -rf "$VENVS/download-anything" "$VENVS/download-anything.repair" 2>/dev/null || true
-  if python3 "$DA_SRC/skills/download-anything/scripts/install.py" \
-      --yes --venv "$VENVS/download-anything" >"$LOGS/download-anything.log" 2>&1; then
-    :
-  else
-    # Source fallback, still directly into the final path — never move a venv after creation.
-    rm -rf "$VENVS/download-anything" 2>/dev/null || true
-    python3 -m venv "$VENVS/download-anything" >>"$LOGS/download-anything.log" 2>&1 || true
-    if [ -x "$VENVS/download-anything/bin/python" ]; then
-      "$VENVS/download-anything/bin/python" -m pip install -U pip setuptools wheel >>"$LOGS/download-anything.log" 2>&1 || true
-      "$VENVS/download-anything/bin/python" -m pip install "$DA_SRC" >>"$LOGS/download-anything.log" 2>&1 || true
-    fi
+
+  # Termux ships cryptography/maturin natively. Expose system site packages so pip/uv
+  # does not rebuild cryptography's Rust stack inside this venv.
+  python3 -m venv --system-site-packages "$VENVS/download-anything" >"$LOGS/download-anything.log" 2>&1 || true
+  if [ -x "$VENVS/download-anything/bin/python" ]; then
+    "$VENVS/download-anything/bin/python" -m pip install -U pip setuptools wheel >>"$LOGS/download-anything.log" 2>&1 || true
+    "$VENVS/download-anything/bin/python" - <<'PY' >>"$LOGS/download-anything.log" 2>&1 || true
+import cryptography
+print("system cryptography:", cryptography.__version__)
+PY
+    "$VENVS/download-anything/bin/python" -m pip install --no-build-isolation "$DA_SRC" >>"$LOGS/download-anything.log" 2>&1 || true
   fi
+
   if [ -x "$VENVS/download-anything/bin/da" ]; then
     ln -sf "$VENVS/download-anything/bin/da" "$BIN/da"
     [ -x "$VENVS/download-anything/bin/dl" ] && ln -sf "$VENVS/download-anything/bin/dl" "$BIN/dl"
@@ -153,27 +163,23 @@ if have cargo && [ -f "$RA_SRC/Cargo.toml" ]; then
   fi
 fi
 
-# 4) NVIDIA SkillEvaluator — prefer normal dependency install after Rust std repair.
-# If PyPI's uv package still has no Android wheel, install the remaining declared base deps and
-# use the already-working native uv executable on PATH; upstream resolves PATH uv before importing Python uv.
+# 4) NVIDIA SkillEvaluator — use native uv executable on PATH; do not compile Python uv on Android.
 SE_SRC="$SRC/SkillEvaluator"
 SE_VENV="$VENVS/skillevaluator"
 rm -rf "$SE_VENV" "$SE_VENV.repair" 2>/dev/null || true
-python3 -m venv "$SE_VENV" >"$LOGS/skillevaluator.log" 2>&1 || true
+python3 -m venv --system-site-packages "$SE_VENV" >"$LOGS/skillevaluator.log" 2>&1 || true
 if [ -x "$SE_VENV/bin/python" ]; then
   "$SE_VENV/bin/python" -m pip install -U pip setuptools wheel >>"$LOGS/skillevaluator.log" 2>&1 || true
-  if ! "$SE_VENV/bin/python" -m pip install "$SE_SRC" >>"$LOGS/skillevaluator.log" 2>&1; then
-    "$SE_VENV/bin/python" -m pip install \
-      'bandit>=1.9.4' 'click>=8.3.3,<9' 'idna>=3.10,<4' 'jinja2>=3.1' \
-      'markdown-it-py>=4.2,<5' 'packaging>=24' 'pydantic>=2.11.0' 'pyyaml>=6.0' \
-      'regex>=2024.11.6' 'rich>=13.5.0' >>"$LOGS/skillevaluator.log" 2>&1 || true
-    "$SE_VENV/bin/python" -m pip install --no-deps "$SE_SRC" >>"$LOGS/skillevaluator.log" 2>&1 || true
-  fi
+  "$SE_VENV/bin/python" -m pip install \
+    'bandit>=1.9.4' 'click>=8.3.3,<9' 'idna>=3.10,<4' 'jinja2>=3.1' \
+    'markdown-it-py>=4.2,<5' 'packaging>=24' 'pydantic>=2.11.0' 'pyyaml>=6.0' \
+    'regex>=2024.11.6' 'rich>=13.5.0' >>"$LOGS/skillevaluator.log" 2>&1 || true
+  "$SE_VENV/bin/python" -m pip install --no-deps "$SE_SRC" >>"$LOGS/skillevaluator.log" 2>&1 || true
 fi
 if [ -x "$SE_VENV/bin/skillevaluator" ]; then
   ln -sf "$SE_VENV/bin/skillevaluator" "$BIN/skillevaluator"
   if "$BIN/skillevaluator" --version >"$LOGS/skillevaluator-version.txt" 2>&1; then
-    say "[PASS] NVIDIA SkillEvaluator base CLI installed"
+    say "[PASS] NVIDIA SkillEvaluator base CLI installed using native uv on PATH"
   else
     say "[HOLD] NVIDIA SkillEvaluator console script exists but does not start"
     tail_log "$LOGS/skillevaluator-version.txt"
