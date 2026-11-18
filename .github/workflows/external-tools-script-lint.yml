@@ -6,6 +6,7 @@ on:
     paths:
       - 'scripts/install-external-tools.sh'
       - 'scripts/verify-external-tools.sh'
+      - 'scripts/repair-external-tools.sh'
       - 'scripts/enable-external-tool-profiles.sh'
       - 'integrations/external-tool-registry-2026-11-18.json'
       - '.github/workflows/external-tools-script-lint.yml'
@@ -26,6 +27,7 @@ jobs:
         run: |
           bash -n scripts/install-external-tools.sh
           bash -n scripts/verify-external-tools.sh
+          bash -n scripts/repair-external-tools.sh
           bash -n scripts/enable-external-tool-profiles.sh
       - name: Registry JSON syntax
         run: python3 -m json.tool integrations/external-tool-registry-2026-11-18.json >/dev/null
