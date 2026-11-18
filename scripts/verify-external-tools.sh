@@ -81,7 +81,11 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   printf 'PASS  %-28s daemon reachable\n' "Docker/Appwrite substrate"
   pass=$((pass+1))
 else
-  printf 'HOLD  %-28s Docker daemon unavailable; run scripts/diagnose-appwrite-substrate.sh\n' "Docker/Appwrite substrate"
+  if [ "$(id -u 2>/dev/null || echo 1)" -ne 0 ] && [ ! -S "${DOCKER_HOST#unix://}" ] && [ ! -S "${PREFIX:-/data/data/com.termux/files/usr}/var/run/docker.sock" ]; then
+    printf 'HOLD  %-28s local self-host blocked on current non-root Android/Termux substrate; Appwrite source remains preserved\n' "Docker/Appwrite substrate"
+  else
+    printf 'HOLD  %-28s Docker daemon unavailable; run scripts/diagnose-appwrite-substrate.sh\n' "Docker/Appwrite substrate"
+  fi
   hold=$((hold+1))
 fi
 
