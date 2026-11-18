@@ -1,0 +1,62 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -u -o pipefail
+ROOT="${LOKIVELLI_EXTERNAL_ROOT:-$HOME/forge-tools}"
+export PATH="$ROOT/bin:$ROOT/npm/bin:$ROOT/cargo/bin:$HOME/.local/bin:$PATH"
+
+pass=0
+hold=0
+check() {
+  local name="$1"; shift
+  if "$@" >/tmp/vantasm-ext-check.$$ 2>&1; then
+    printf 'PASS  %-28s %s\n' "$name" "$(head -n1 /tmp/vantasm-ext-check.$$)"
+    pass=$((pass+1))
+  else
+    printf 'HOLD  %-28s %s\n' "$name" "$(head -n1 /tmp/vantasm-ext-check.$$)"
+    hold=$((hold+1))
+  fi
+  rm -f /tmp/vantasm-ext-check.$$
+}
+cmdv() { command -v "$1"; }
+
+check "uv" uv --version
+check "md-anything" mda --help
+check "md-anything-mcp" cmdv md-anything-mcp
+check "download-anything" da doctor --json
+check "lemmeknow" lemmeknow --version
+check "CLI-Anything hub" bash -lc 'command -v cli-hub || command -v cli-anything-hub || command -v cli-anything'
+check "Playwright CLI" npx -y @playwright/cli@latest --version
+check "rust-anything" rust-anything --version
+check "OpenClaude" openclaude --version
+check "SkillEvaluator" skillevaluator --version
+
+for d in   CLI-Anything CLI-Anything-WEB harness-anything awesome-mcp-servers cursor-plugins   jquery appwrite stitch-skills md-anything openclaude SkillEvaluator rust-anything uv   download-anything Claude-BugHunter
+do
+  if [ -d "$ROOT/src/$d/.git" ]; then
+    printf 'PASS  %-28s %s\n' "source:$d" "$(git -C "$ROOT/src/$d" rev-parse --short HEAD 2>/dev/null)"
+    pass=$((pass+1))
+  else
+    printf 'HOLD  %-28s missing checkout\n' "source:$d"
+    hold=$((hold+1))
+  fi
+done
+
+if [ -d "$HOME/.agents/skills" ]; then
+  printf 'PASS  %-28s %s\n' "agent-skills-root" "$HOME/.agents/skills"
+  pass=$((pass+1))
+else
+  printf 'HOLD  %-28s not present\n' "agent-skills-root"
+  hold=$((hold+1))
+fi
+
+if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  printf 'PASS  %-28s daemon reachable\n' "Docker/Appwrite substrate"
+  pass=$((pass+1))
+else
+  printf 'HOLD  %-28s Docker daemon unavailable; Appwrite self-host remains blocked\n' "Docker/Appwrite substrate"
+  hold=$((hold+1))
+fi
+
+printf '\nRESULT: PASS=%d HOLD=%d\n' "$pass" "$hold"
+if [ "$hold" -gt 0 ]; then
+  exit 4
+fi
