@@ -56,6 +56,9 @@ for p in git curl python nodejs rust clang make pkg-config ffmpeg unzip poppler 
   fi
 done
 
+# Termux packages Rust host static std libraries separately; cargo build scripts/proc-macros need them.
+pkg_install rust-std-aarch64-linux-android || true
+
 # uv — prefer a Termux-native package. Do not pull a glibc standalone binary onto Android.
 if have uv; then
   record "uv" PASS "$(uv --version 2>&1 | head -n1)"
