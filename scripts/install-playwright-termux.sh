@@ -60,7 +60,7 @@ fi
 rm -rf "$PW_ROOT" 2>/dev/null || true
 mkdir -p "$PW_ROOT"
 
-CLI_VERSION="$(npm view @playwright/cli version --json --no-update-notifier 2>/dev/null | tr -d '"[:space:]')"
+CLI_VERSION="$(npm view @playwright/cli version --no-update-notifier 2>/dev/null | tail -n 1 | tr -d '[:space:]')"
 [ -n "$CLI_VERSION" ] || CLI_VERSION="0.1.24"
 PW_STABLE_VERSION="${LOKIVELLI_PLAYWRIGHT_STABLE_VERSION:-1.65.1}"
 
