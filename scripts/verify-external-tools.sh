@@ -32,7 +32,16 @@ mcp_smoke() {
   [ "$rc" -eq 0 ] || [ "$rc" -eq 124 ]
 }
 playwright_smoke() {
-  PLAYWRIGHT_BROWSERS_PATH=0 npx -y @playwright/cli@latest --version
+  command -v playwright-cli >/dev/null 2>&1 || return 1
+  chromium-browser --version >/dev/null 2>&1 || return 1
+  playwright-cli --version >/dev/null 2>&1 || return 1
+  timeout 90 playwright-cli -s=vantasm-verify open about:blank >/dev/null 2>&1 || return 1
+  timeout 60 playwright-cli -s=vantasm-verify snapshot >/dev/null 2>&1 || {
+    playwright-cli -s=vantasm-verify close >/dev/null 2>&1 || true
+    return 1
+  }
+  playwright-cli -s=vantasm-verify close >/dev/null 2>&1 || true
+  printf 'Termux Chromium launch/snapshot/close OK\n'
 }
 
 check "uv" uv --version
