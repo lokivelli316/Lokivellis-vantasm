@@ -96,7 +96,9 @@ fi
 
 # 1b) md-anything — upstream is Bun-targeted; use an inspectable Node/tsx adapter on Android.
 MDA_SRC="$SRC/md-anything"
-if have npm && have node && [ -f "$MDA_SRC/package.json" ]; then
+if [ -x "$BIN/mda" ] && "$BIN/mda" doctor >/dev/null 2>&1 && [ -x "$BIN/md-anything-mcp" ]; then
+  say "[PASS] md-anything already healthy; preserving existing adapter"
+elif have npm && have node && [ -f "$MDA_SRC/package.json" ]; then
   if npm install --prefix "$MDA_SRC" --omit=dev >"$LOGS/md-anything-node.log" 2>&1 &&
      npm install -g --prefix "$ROOT/npm" tsx >>"$LOGS/md-anything-node.log" 2>&1; then
     TSX="$ROOT/npm/bin/tsx"
@@ -132,8 +134,11 @@ fi
 
 # 2) lemmeknow — build current source on Android instead of relying on a stale locked dependency set.
 LEM_SRC="$SRC/lemmeknow"
-clone_or_update "lemmeknow" "https://github.com/swanandx/lemmeknow.git" "$LEM_SRC" >"$LOGS/lemmeknow-clone.log" 2>&1 || true
-if have cargo && [ -f "$LEM_SRC/Cargo.toml" ]; then
+if [ -x "$BIN/lemmeknow" ] && "$BIN/lemmeknow" --version >/dev/null 2>&1; then
+  say "[PASS] lemmeknow already healthy; skipping rebuild"
+else
+  clone_or_update "lemmeknow" "https://github.com/swanandx/lemmeknow.git" "$LEM_SRC" >"$LOGS/lemmeknow-clone.log" 2>&1 || true
+  if have cargo && [ -f "$LEM_SRC/Cargo.toml" ]; then
   if cargo install --path "$LEM_SRC" --root "$CARGO_HOME" --force >"$LOGS/lemmeknow.log" 2>&1; then
     ln -sf "$CARGO_HOME/bin/lemmeknow" "$BIN/lemmeknow"
     say "[PASS] lemmeknow built from source"
@@ -142,13 +147,17 @@ if have cargo && [ -f "$LEM_SRC/Cargo.toml" ]; then
     tail_log "$LOGS/lemmeknow.log"
   fi
 fi
+fi
 
 # 3) rust-anything — report the hard Rust-version gate explicitly, then build if possible.
 RA_SRC="$SRC/rust-anything"
-if have rustc; then
-  rustc --version | tee "$LOGS/rustc-version.txt"
-fi
-if have cargo && [ -f "$RA_SRC/Cargo.toml" ]; then
+if [ -x "$BIN/rust-anything" ] && "$BIN/rust-anything" --version >/dev/null 2>&1; then
+  say "[PASS] rust-anything already healthy; skipping rebuild"
+else
+  if have rustc; then
+    rustc --version | tee "$LOGS/rustc-version.txt"
+  fi
+  if have cargo && [ -f "$RA_SRC/Cargo.toml" ]; then
   if cargo install --path "$RA_SRC" --root "$CARGO_HOME" --force >"$LOGS/rust-anything.log" 2>&1; then
     ln -sf "$CARGO_HOME/bin/rust-anything" "$BIN/rust-anything"
     if "$BIN/rust-anything" setup >"$LOGS/rust-anything-setup.log" 2>&1; then
@@ -162,10 +171,14 @@ if have cargo && [ -f "$RA_SRC/Cargo.toml" ]; then
     tail_log "$LOGS/rust-anything.log"
   fi
 fi
+fi
 
 # 4) NVIDIA SkillEvaluator — use native uv executable on PATH; do not compile Python uv on Android.
 SE_SRC="$SRC/SkillEvaluator"
 SE_VENV="$VENVS/skillevaluator"
+if [ -x "$BIN/skillevaluator" ] && "$BIN/skillevaluator" --version >/dev/null 2>&1; then
+  say "[PASS] NVIDIA SkillEvaluator already healthy; preserving existing venv"
+else
 rm -rf "$SE_VENV" "$SE_VENV.repair" 2>/dev/null || true
 python3 -m venv --system-site-packages "$SE_VENV" >"$LOGS/skillevaluator.log" 2>&1 || true
 if [ -x "$SE_VENV/bin/python" ]; then
@@ -187,6 +200,7 @@ if [ -x "$SE_VENV/bin/skillevaluator" ]; then
 else
   say "[HOLD] NVIDIA SkillEvaluator repair failed"
   tail_log "$LOGS/skillevaluator.log"
+fi
 fi
 
 # 5) Playwright CLI — attempt package resolution only. Browser runtime support is separately verified.
