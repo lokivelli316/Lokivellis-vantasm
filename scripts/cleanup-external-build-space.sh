@@ -16,6 +16,10 @@ for p in \
   "$HOME/.cache/uv/sdists-v10" \
   "$HOME/.npm/_npx" \
   "$HOME/.npm/_cacache" \
+  "$ROOT/cargo/registry/cache" \
+  "$ROOT/cargo/registry/src" \
+  "$HOME/.cargo/registry/cache" \
+  "$HOME/.cargo/registry/src" \
   "$ROOT/src/lemmeknow/target" \
   "$ROOT/src/rust-anything/target" \
   "$ROOT/venvs/download-anything" \
@@ -32,6 +36,10 @@ rm -rf \
   "$HOME/.cache/uv/sdists-v10" \
   "$HOME/.npm/_npx" \
   "$HOME/.npm/_cacache" \
+  "$ROOT/cargo/registry/cache" \
+  "$ROOT/cargo/registry/src" \
+  "$HOME/.cargo/registry/cache" \
+  "$HOME/.cargo/registry/src" \
   "$ROOT/src/lemmeknow/target" \
   "$ROOT/src/rust-anything/target" \
   "$ROOT/venvs/download-anything" \
