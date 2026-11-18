@@ -144,12 +144,14 @@ else
 fi
 clone_or_update "CLI-Anything-source" "https://github.com/HKUDS/CLI-Anything.git" "$SRC/CLI-Anything" || true
 
-# CLI-Anything-WEB has no single universal runtime package; preserve full source and Playwright CLI entrypoint.
+# CLI-Anything-WEB has no single universal runtime package; preserve full source and wire
+# the Playwright capture substrate through the Termux-native Chromium adapter.
 clone_or_update "CLI-Anything-WEB-source" "https://github.com/ItamarZand88/CLI-Anything-WEB.git" "$SRC/CLI-Anything-WEB" || true
-if have npx && npx -y @playwright/cli@latest --version >/dev/null 2>&1; then
-  record "CLI-Anything-WEB-playwright" PASS "Playwright CLI entrypoint available through npx"
+PW_HELPER="$(cd "$(dirname "$0")" && pwd)/install-playwright-termux.sh"
+if [ -x "$PW_HELPER" ] && "$PW_HELPER" "$RECEIPTS/playwright-termux-$STAMP"; then
+  record "CLI-Anything-WEB-playwright" PASS "Termux Chromium adapter installed and browser-smoke verified"
 else
-  record "CLI-Anything-WEB-playwright" HOLD "Playwright CLI unavailable; web harness generation not runtime-ready"
+  record "CLI-Anything-WEB-playwright" HOLD "Termux Playwright/Chromium adapter not runtime-ready"
 fi
 
 # rust-anything — install binary then run its own config-preserving setup.
