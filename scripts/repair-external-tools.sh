@@ -37,25 +37,36 @@ pkg_try(){
 say "Repair receipts: $LOGS"
 
 # Build prerequisites commonly needed by Android source builds.
-pkg_try clang make cmake pkg-config rust git python openssl libffi libjpeg-turbo libpng freetype ffmpeg unzip || true
+pkg_try clang make cmake pkg-config rust rust-std-aarch64-linux-android git python openssl libffi libjpeg-turbo libpng freetype ffmpeg unzip || true
 
-# 1) Download Anything — preserve upstream install first, then source-install fallback.
+# Termux splits host Rust static standard libraries from rustc. Keep them version-matched.
+if have rustc; then
+  {
+    echo "rustc: $(rustc --version)"
+    dpkg-query -W -f='rust: ${Version}\n' rust 2>/dev/null || true
+    dpkg-query -W -f='rust-std-aarch64-linux-android: ${Version}\n' rust-std-aarch64-linux-android 2>/dev/null || true
+    SYSROOT="$(rustc --print sysroot 2>/dev/null || true)"
+    if [ -n "$SYSROOT" ]; then
+      echo "host rlibs: $(find "$SYSROOT/lib/rustlib/aarch64-linux-android/lib" -maxdepth 1 -name '*.rlib' 2>/dev/null | wc -l)"
+    fi
+  } | tee "$LOGS/rust-toolchain.txt"
+fi
+
+# 1) Download Anything — rebuild directly at the final venv path so console-script shebangs stay valid.
 DA_SRC="$SRC/download-anything"
 if [ -d "$DA_SRC" ]; then
-  rm -rf "$VENVS/download-anything.repair" 2>/dev/null || true
-  if python3 "$DA_SRC/skills/download-anything/scripts/install.py"       --yes --venv "$VENVS/download-anything.repair" >"$LOGS/download-anything.log" 2>&1; then
-    rm -rf "$VENVS/download-anything"
-    mv "$VENVS/download-anything.repair" "$VENVS/download-anything"
+  rm -f "$BIN/da" "$BIN/dl" 2>/dev/null || true
+  rm -rf "$VENVS/download-anything" "$VENVS/download-anything.repair" 2>/dev/null || true
+  if python3 "$DA_SRC/skills/download-anything/scripts/install.py" \
+      --yes --venv "$VENVS/download-anything" >"$LOGS/download-anything.log" 2>&1; then
+    :
   else
-    rm -rf "$VENVS/download-anything.repair" 2>/dev/null || true
-    python3 -m venv "$VENVS/download-anything.repair" >>"$LOGS/download-anything.log" 2>&1 || true
-    if [ -x "$VENVS/download-anything.repair/bin/python" ]; then
-      "$VENVS/download-anything.repair/bin/python" -m pip install -U pip setuptools wheel >>"$LOGS/download-anything.log" 2>&1 || true
-      "$VENVS/download-anything.repair/bin/python" -m pip install "$DA_SRC" >>"$LOGS/download-anything.log" 2>&1 || true
-      if [ -x "$VENVS/download-anything.repair/bin/da" ]; then
-        rm -rf "$VENVS/download-anything"
-        mv "$VENVS/download-anything.repair" "$VENVS/download-anything"
-      fi
+    # Source fallback, still directly into the final path — never move a venv after creation.
+    rm -rf "$VENVS/download-anything" 2>/dev/null || true
+    python3 -m venv "$VENVS/download-anything" >>"$LOGS/download-anything.log" 2>&1 || true
+    if [ -x "$VENVS/download-anything/bin/python" ]; then
+      "$VENVS/download-anything/bin/python" -m pip install -U pip setuptools wheel >>"$LOGS/download-anything.log" 2>&1 || true
+      "$VENVS/download-anything/bin/python" -m pip install "$DA_SRC" >>"$LOGS/download-anything.log" 2>&1 || true
     fi
   fi
   if [ -x "$VENVS/download-anything/bin/da" ]; then
@@ -70,6 +81,42 @@ if [ -d "$DA_SRC" ]; then
   else
     say "[HOLD] download-anything repair failed"
     tail_log "$LOGS/download-anything.log"
+  fi
+fi
+
+# 1b) md-anything — upstream is Bun-targeted; use an inspectable Node/tsx adapter on Android.
+MDA_SRC="$SRC/md-anything"
+if have npm && have node && [ -f "$MDA_SRC/package.json" ]; then
+  if npm install --prefix "$MDA_SRC" --omit=dev >"$LOGS/md-anything-node.log" 2>&1 &&
+     npm install -g --prefix "$ROOT/npm" tsx >>"$LOGS/md-anything-node.log" 2>&1; then
+    TSX="$ROOT/npm/bin/tsx"
+    BOOT="$ROOT/md-anything-node-bootstrap.mjs"
+    cat >"$BOOT" <<EOF
+globalThis.Bun = globalThis.Bun || { argv: process.argv };
+const target = process.env.MDA_NODE_TARGET;
+if (!target) throw new Error("MDA_NODE_TARGET missing");
+await import(target);
+EOF
+    cat >"$BIN/mda" <<EOF
+#!/data/data/com.termux/files/usr/bin/bash
+export MDA_NODE_TARGET="$MDA_SRC/src/cli.ts"
+exec "$TSX" "$BOOT" "\$@"
+EOF
+    cat >"$BIN/md-anything-mcp" <<EOF
+#!/data/data/com.termux/files/usr/bin/bash
+export MDA_NODE_TARGET="$MDA_SRC/src/mcp.ts"
+exec "$TSX" "$BOOT" "\$@"
+EOF
+    chmod 755 "$BIN/mda" "$BIN/md-anything-mcp"
+    if "$BIN/mda" doctor >"$LOGS/md-anything-doctor.txt" 2>&1; then
+      say "[PASS] md-anything Node/tsx Termux adapter works"
+    else
+      say "[HOLD] md-anything Node/tsx adapter still failed"
+      tail_log "$LOGS/md-anything-doctor.txt"
+    fi
+  else
+    say "[HOLD] md-anything Node/tsx adapter dependency install failed"
+    tail_log "$LOGS/md-anything-node.log"
   fi
 fi
 
@@ -106,28 +153,39 @@ if have cargo && [ -f "$RA_SRC/Cargo.toml" ]; then
   fi
 fi
 
-# 4) NVIDIA SkillEvaluator — system Python 3.14 is allowed upstream; build dependencies locally if wheels are absent.
+# 4) NVIDIA SkillEvaluator — prefer normal dependency install after Rust std repair.
+# If PyPI's uv package still has no Android wheel, install the remaining declared base deps and
+# use the already-working native uv executable on PATH; upstream resolves PATH uv before importing Python uv.
 SE_SRC="$SRC/SkillEvaluator"
 SE_VENV="$VENVS/skillevaluator"
-rm -rf "$SE_VENV.repair" 2>/dev/null || true
-if python3 -m venv "$SE_VENV.repair" >"$LOGS/skillevaluator.log" 2>&1; then
-  "$SE_VENV.repair/bin/python" -m pip install -U pip setuptools wheel >>"$LOGS/skillevaluator.log" 2>&1 || true
-  "$SE_VENV.repair/bin/python" -m pip install "$SE_SRC" >>"$LOGS/skillevaluator.log" 2>&1 || true
+rm -rf "$SE_VENV" "$SE_VENV.repair" 2>/dev/null || true
+python3 -m venv "$SE_VENV" >"$LOGS/skillevaluator.log" 2>&1 || true
+if [ -x "$SE_VENV/bin/python" ]; then
+  "$SE_VENV/bin/python" -m pip install -U pip setuptools wheel >>"$LOGS/skillevaluator.log" 2>&1 || true
+  if ! "$SE_VENV/bin/python" -m pip install "$SE_SRC" >>"$LOGS/skillevaluator.log" 2>&1; then
+    "$SE_VENV/bin/python" -m pip install \
+      'bandit>=1.9.4' 'click>=8.3.3,<9' 'idna>=3.10,<4' 'jinja2>=3.1' \
+      'markdown-it-py>=4.2,<5' 'packaging>=24' 'pydantic>=2.11.0' 'pyyaml>=6.0' \
+      'regex>=2024.11.6' 'rich>=13.5.0' >>"$LOGS/skillevaluator.log" 2>&1 || true
+    "$SE_VENV/bin/python" -m pip install --no-deps "$SE_SRC" >>"$LOGS/skillevaluator.log" 2>&1 || true
+  fi
 fi
-if [ -x "$SE_VENV.repair/bin/skillevaluator" ]; then
-  rm -rf "$SE_VENV"
-  mv "$SE_VENV.repair" "$SE_VENV"
+if [ -x "$SE_VENV/bin/skillevaluator" ]; then
   ln -sf "$SE_VENV/bin/skillevaluator" "$BIN/skillevaluator"
-  say "[PASS] NVIDIA SkillEvaluator base CLI built/installed"
+  if "$BIN/skillevaluator" --version >"$LOGS/skillevaluator-version.txt" 2>&1; then
+    say "[PASS] NVIDIA SkillEvaluator base CLI installed"
+  else
+    say "[HOLD] NVIDIA SkillEvaluator console script exists but does not start"
+    tail_log "$LOGS/skillevaluator-version.txt"
+  fi
 else
-  rm -rf "$SE_VENV.repair" 2>/dev/null || true
   say "[HOLD] NVIDIA SkillEvaluator repair failed"
   tail_log "$LOGS/skillevaluator.log"
 fi
 
 # 5) Playwright CLI — attempt package resolution only. Browser runtime support is separately verified.
 if have npx; then
-  if npx -y @playwright/cli@latest --version >"$LOGS/playwright-cli.log" 2>&1; then
+  if PLAYWRIGHT_BROWSERS_PATH=0 npx -y @playwright/cli@latest --version >"$LOGS/playwright-cli.log" 2>&1; then
     say "[PASS] Playwright CLI package resolves"
   else
     say "[HOLD] Playwright CLI package does not run on this Android environment"
