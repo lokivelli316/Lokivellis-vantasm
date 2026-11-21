@@ -139,3 +139,7 @@ The builder should continue that loop without owner handoff while actions remain
 Owner interaction is reserved for boundaries that genuinely require it, including external credentials or OAuth, Android permissions, destructive/high-impact changes, expansion of authorized roots, and publication/push decisions.
 
 `git push` is intentionally not registered by operator mode. Local source repair and commit may be completed autonomously; publication remains an explicit owner boundary.
+
+## Cross-Seed MAX² v2 intake
+
+The exact shared MAX² v2 block is staged at [`ui/cross-seed-max-v2/LOKIVELLI_CROSS_SEED_MAX_V2_BLOCK.html`](ui/cross-seed-max-v2/LOKIVELLI_CROSS_SEED_MAX_V2_BLOCK.html). The pixel-faithful Vantasm package and binary-safe completion gate are recorded in [`docs/CROSS_SEED_MAX_V2_INTAKE_2026-11-21.md`](docs/CROSS_SEED_MAX_V2_INTAKE_2026-11-21.md). Existing Surgeon/backend/runtime files remain authoritative until the branded UI/assets are transferred and verified.
